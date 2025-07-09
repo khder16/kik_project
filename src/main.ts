@@ -6,14 +6,17 @@ import * as compression from 'compression';
 import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from './common/filters/exceptions.filter';
-
+import { WinstonLogger } from './common/logger/winston.logger';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 
 
 
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new WinstonLogger('AppBootstrap'),
+  });
   const configService = app.get(ConfigService);
 
   // Security Middlewares
@@ -23,6 +26,8 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
+
+
   app.use(compression()); // Gzip compression for responses
 
   // Cookies

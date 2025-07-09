@@ -19,6 +19,7 @@ export class AuthController {
     constructor(private authService: AuthService, private readonly otpService: OtpService, private userService: UserService) { }
 
     @Post('signup')
+    @Throttle({ signup: {} })
     async signUp(@Body() signUpDto: SignUpDto, @Res() res: Response) {
         try {
             const result = await this.authService.signUp(signUpDto, res);
@@ -37,7 +38,7 @@ export class AuthController {
 
 
     @Post('login')
-    @Throttle({ login: { limit: 5, ttl: 60 } })
+    @Throttle({ login: {} })
     async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
         try {
             const result = await this.authService.login(loginDto, res);
@@ -58,7 +59,7 @@ export class AuthController {
     @UseGuards(AuthGuard('google'))
     async googleAuth(@Req() req) { }
 
-    
+
 
     @Get('google/redirect')
     @UseGuards(AuthGuard('google'))
@@ -68,11 +69,12 @@ export class AuthController {
             res.cookie('access_token', token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict'
             });
             return res.redirect('/home');
         } catch (error) {
             if (error instanceof ConflictException) {
-                throw error;
+                return res.redirect('/error');
             }
             throw new InternalServerErrorException('An unexpected error occurred during Google authentication redirect.');
         }
@@ -99,7 +101,7 @@ export class AuthController {
 
 
     @Post('password/request-code')
-    @Throttle({ default: { limit: 3, ttl: 3600 } })
+    @Throttle({ passwordReset: {} })
     async requestPasswordReset(@Body() emailDto: EmailDto) {
         try {
             await this.authService.requestOtpCode(emailDto.email);
@@ -118,7 +120,7 @@ export class AuthController {
 
 
     @Post('password/validate-code')
-    @Throttle({ default: { limit: 5, ttl: 300 } })
+    @Throttle({ validateCode: {} })
     async validateOtp(@Body() validateOtpDto: OtpDto) {
         const isValid = await this.otpService.getOtpCode(
             validateOtpDto.email,
@@ -131,7 +133,7 @@ export class AuthController {
             statusCode: HttpStatus.OK,
             message: 'OTP validated successfully'
         };
-    } catch(error) {
+    } catch(error: any) {
         if (error instanceof ConflictException) {
             throw error;
         }
@@ -140,6 +142,7 @@ export class AuthController {
 
 
     @Post('password/update-password')
+    @Throttle({ passwordUpdate: {} })
     async resetPassword(@Body() forgotPasswordDto: ForgetPasswordDto) {
         try {
             const { email, password } = forgotPasswordDto;

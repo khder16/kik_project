@@ -17,8 +17,8 @@ import { NotificationModule } from './notification/notification.module';
 import { SystempagesController } from './systempages/systempages.controller';
 import { SystempagesService } from './systempages/systempages.service';
 import { SystempagesModule } from './systempages/systempages.module';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { OtpService } from './otp/otp.service';
+import { APP_GUARD } from '@nestjs/core';
+import { minutes, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { OtpModule } from './otp/otp.module';
 import configuration from './config/configuration';
 
@@ -33,7 +33,7 @@ import configuration from './config/configuration';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         transport: {
-          service:'gmail',
+          service: 'gmail',
           auth: {
             user: configService.get<string>('nodemailer.emailUser'),
             pass: configService.get<string>('nodemailer.emailAppPassword'),
@@ -54,9 +54,39 @@ import configuration from './config/configuration';
     ThrottlerModule.forRoot({
       throttlers: [
         {
-          name: 'long',
-          ttl: 60, // Time-to-live in seconds (default: 60)
-          limit: 10, // Max requests per TTL (default: 10)
+          name: 'default',
+          ttl: 60000,
+          limit: 100,
+        },
+        {
+          name: 'signup',
+          ttl: minutes(60),
+          limit: 5
+        },
+        {
+          name: 'login',
+          ttl: minutes(5),
+          limit: 5
+        },
+        {
+          name: "passwordReset",
+          ttl: 86400000,  // 24h
+          limit: 4
+        },
+        {
+          name: "validateCode",
+          ttl: minutes(60),  // 1h
+          limit: 6
+        },
+        {
+          name: "passwordUpdate",
+          ttl: 86400000,
+          limit: 4
+        },
+        {
+          name: "userController",
+          ttl: 60000,
+          limit: 100
         }
       ]
     }),
@@ -70,6 +100,10 @@ import configuration from './config/configuration';
     SystempagesModule,
     OtpModule],
   controllers: [AppController, WishlistController, SystempagesController],
-  providers: [AppService, WishlistService, SystempagesService],
+  providers: [AppService, WishlistService, SystempagesService, {
+    provide: APP_GUARD,
+    useClass: ThrottlerGuard,
+
+  },],
 })
 export class AppModule { }
