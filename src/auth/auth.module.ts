@@ -7,7 +7,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UserModule } from 'src/user/user.module';
 import { UserService } from 'src/user/user.service';
 import { GoogleStrategy } from './strategies/google.strategy';
-import { FacebookStrategy } from './strategies/facebook.strategy';
+// import { FacebookStrategy } from './strategies/facebook.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { OtpModule } from 'src/otp/otp.module';
 @Module({
@@ -26,6 +26,6 @@ import { OtpModule } from 'src/otp/otp.module';
     OtpModule
   ],
   controllers: [AuthController],
-  providers: [AuthService, GoogleStrategy, FacebookStrategy, JwtStrategy]
+  providers: [AuthService, GoogleStrategy, JwtStrategy]
 })
 export class AuthModule { }
