@@ -13,17 +13,17 @@ import { OtpModule } from 'src/otp/otp.module';
 @Module({
   imports: [
     PassportModule,
-    JwtModule.registerAsync({
+    ConfigModule,
+    UserModule,
+    OtpModule,
+    JwtModule.registerAsync({  
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('jwt.secret'),
-        signOptions: { expiresIn: configService.get<string>('jwt.expiresIn') },
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '1h' },
       }),
       inject: [ConfigService],
     }),
-    ConfigModule,
-    UserModule,
-    OtpModule
   ],
   controllers: [AuthController],
   providers: [AuthService, GoogleStrategy, JwtStrategy]

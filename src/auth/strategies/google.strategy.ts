@@ -21,7 +21,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         profile: any,
         done: VerifyCallback,
     ): Promise<any> {
-        // Access properties safely
         const email = profile.emails && profile.emails.length > 0 ? profile.emails[0].value : null;
         const firstName = profile.name ? profile.name.givenName : null;
         const lastName = profile.name ? profile.name.familyName : null;

@@ -175,7 +175,7 @@ export class AuthService {
 
             const payload = {
                 email: user.email,
-                sub: user._id.toString(),
+                id: user._id.toString(),
                 role: user.role as UserRole,
             };
             const token = this.generateToken(payload);

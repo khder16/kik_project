@@ -18,15 +18,24 @@ import { SystempagesController } from './systempages/systempages.controller';
 import { SystempagesService } from './systempages/systempages.service';
 import { SystempagesModule } from './systempages/systempages.module';
 import { APP_GUARD } from '@nestjs/core';
-import { minutes, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { OtpModule } from './otp/otp.module';
 import configuration from './config/configuration';
+import { JwtModule, JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [AuthModule,
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration]
+    }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('jwt.secret'),
+        signOptions: { expiresIn: configService.get<string>('jwt.expiresIn') },
+      }),
+      inject: [ConfigService],
     }),
     MailerModule.forRootAsync({
       imports: [ConfigModule],
@@ -54,39 +63,8 @@ import configuration from './config/configuration';
     ThrottlerModule.forRoot({
       throttlers: [
         {
-          name: 'default',
           ttl: 60000,
           limit: 100,
-        },
-        {
-          name: 'signup',
-          ttl: minutes(60),
-          limit: 5
-        },
-        {
-          name: 'login',
-          ttl: minutes(5),
-          limit: 5
-        },
-        {
-          name: "passwordReset",
-          ttl: 86400000,  // 24h
-          limit: 4
-        },
-        {
-          name: "validateCode",
-          ttl: minutes(60),  // 1h
-          limit: 6
-        },
-        {
-          name: "passwordUpdate",
-          ttl: 86400000,
-          limit: 4
-        },
-        {
-          name: "userController",
-          ttl: 60000,
-          limit: 100
         }
       ]
     }),
@@ -100,10 +78,9 @@ import configuration from './config/configuration';
     SystempagesModule,
     OtpModule],
   controllers: [AppController, WishlistController, SystempagesController],
-  providers: [AppService, WishlistService, SystempagesService, {
+  providers: [AppService, WishlistService, SystempagesService, JwtService, {
     provide: APP_GUARD,
     useClass: ThrottlerGuard,
-
-  },],
+  }],
 })
 export class AppModule { }

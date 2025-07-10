@@ -4,7 +4,7 @@ import { SignUpDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
-import { Throttle } from '@nestjs/throttler';
+import { minutes, Throttle } from '@nestjs/throttler';
 import { EmailDto } from './dto/email.dto';
 import { OtpDto } from './dto/otp.dto';
 import { OtpService } from 'src/otp/otp.service';
@@ -19,7 +19,8 @@ export class AuthController {
     constructor(private authService: AuthService, private readonly otpService: OtpService, private userService: UserService) { }
 
     @Post('signup')
-    @Throttle({ signup: {} })
+    @Throttle({ default: { ttl: minutes(60), limit: 8 } })
+
     async signUp(@Body() signUpDto: SignUpDto, @Res() res: Response) {
         try {
             const result = await this.authService.signUp(signUpDto, res);
@@ -38,7 +39,7 @@ export class AuthController {
 
 
     @Post('login')
-    @Throttle({ login: {} })
+    @Throttle({ default: { ttl: minutes(5), limit: 10 } })
     async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
         try {
             const result = await this.authService.login(loginDto, res);
@@ -101,7 +102,7 @@ export class AuthController {
 
 
     @Post('password/request-code')
-    @Throttle({ passwordReset: {} })
+    @Throttle({ default: { ttl: minutes(1440), limit: 6 } })
     async requestPasswordReset(@Body() emailDto: EmailDto) {
         try {
             await this.authService.requestOtpCode(emailDto.email);
@@ -120,7 +121,7 @@ export class AuthController {
 
 
     @Post('password/validate-code')
-    @Throttle({ validateCode: {} })
+    @Throttle({ default: { ttl: minutes(60), limit: 10 } })
     async validateOtp(@Body() validateOtpDto: OtpDto) {
         const isValid = await this.otpService.getOtpCode(
             validateOtpDto.email,
@@ -142,7 +143,7 @@ export class AuthController {
 
 
     @Post('password/update-password')
-    @Throttle({ passwordUpdate: {} })
+    @Throttle({ default: { ttl: minutes(1440), limit: 4 } })
     async resetPassword(@Body() forgotPasswordDto: ForgetPasswordDto) {
         try {
             const { email, password } = forgotPasswordDto;
