@@ -26,6 +26,8 @@ export class AuthService {
         private otpService: OtpService
     ) { }
 
+
+
     private readonly logger = new Logger(AuthService.name);
 
 
@@ -139,7 +141,7 @@ export class AuthService {
         }
     }
 
-    async validateOAuthLogin(profile: any, provider: 'google' | 'facebook'): Promise<string> {
+    async validateOAuthLogin(profile: any, provider: 'google' | 'facebook', userType?: string): Promise<string> {
         const email = profile.email || null;
         if (!email) {
             throw new BadRequestException('Social profile did not provide an email address. Cannot create or link account.');
@@ -161,8 +163,8 @@ export class AuthService {
                     email: email.toLowerCase(),
                     password: generatedPassword,
                     firstName: profile.firstName || null,
-                    lastName: profile.lastName ||  null,
-                    role: UserRole.NORMAL_USER,
+                    lastName: profile.lastName || null,
+                    role: (userType as UserRole) || UserRole.NORMAL_USER,
                     phoneNumper: ''
                 };
                 if (provider === 'google') {

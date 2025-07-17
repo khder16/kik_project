@@ -7,11 +7,9 @@ import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from './common/filters/exceptions.filter';
 import { WinstonLogger } from './common/logger/winston.logger';
-import { ThrottlerGuard } from '@nestjs/throttler';
-
-
-
-
+import { doubleCsrf } from 'csrf-csrf';
+import { join } from 'path';
+import * as express from 'express'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -19,6 +17,9 @@ async function bootstrap() {
   });
   const configService = app.get(ConfigService);
 
+  // Static Folder For Images
+  app.use('/public', express.static(join(process.cwd(), 'public')));
+  
   // Security Middlewares
   app.use(helmet());
   app.enableCors({
@@ -26,6 +27,28 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
+
+  
+  // CSRF Protection
+  // const {
+  //   // invalidCsrfTokenError, 
+  //   // generateToken,       
+  //   // validateRequest,     
+  //   doubleCsrfProtection
+  // } = doubleCsrf({
+  //   get
+  //     : (req) => req.secret,
+  //   cookieName: '_csrf',
+  //   cookieOptions: {
+  //     httpOnly: true,
+  //     sameSite: 'lax',
+  //     secure: process.env.NODE_ENV === 'production',
+  //   },
+  //   tokenValidFor: 60 * 60 * 24,
+  //   ignoreMethods: ['GET', 'HEAD', 'OPTIONS'],
+  // });
+
+  // app.use(doubleCsrfProtection);
 
 
   app.use(compression()); // Gzip compression for responses
@@ -39,9 +62,9 @@ async function bootstrap() {
 
   // Global Pipes for DTO validation
   app.useGlobalPipes(new ValidationPipe({
-    whitelist: true, 
+    whitelist: true,
     forbidNonWhitelisted: true,
-    transform: true, 
+    transform: true,
   }));
 
 
@@ -50,6 +73,7 @@ async function bootstrap() {
 
   const httpAdapter = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
+
 
   const port = configService.get<number>('PORT');
   await app.listen(port);

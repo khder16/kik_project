@@ -25,6 +25,8 @@ export class User extends Document {
     @Prop({ default: '' })
     otpCode: string;
 
+    @Prop({ enum: ['syria', 'norway'] })
+    country: string;
 
     @Prop()
     googleId?: string;

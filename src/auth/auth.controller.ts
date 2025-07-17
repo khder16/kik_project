@@ -1,6 +1,6 @@
-import { Controller, Post, Body, Res, HttpStatus, UseGuards, Req, InternalServerErrorException, Get, ConflictException } from '@nestjs/common';
+import { Controller, Post, Body, Res, HttpStatus, UseGuards, Request, Req, InternalServerErrorException, Get, ConflictException, HttpException, Query, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SignUpDto } from './dto/signup.dto';
+import { SignUpDto, UserRole } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
@@ -10,6 +10,9 @@ import { OtpDto } from './dto/otp.dto';
 import { OtpService } from 'src/otp/otp.service';
 import { UserService } from 'src/user/user.service';
 import { ForgetPasswordDto } from './dto/forget-password.dto';
+import { User } from 'src/user/schemas/user.schema';
+import { NotFoundError } from 'rxjs';
+
 
 
 
@@ -20,7 +23,6 @@ export class AuthController {
 
     @Post('signup')
     @Throttle({ default: { ttl: minutes(60), limit: 8 } })
-
     async signUp(@Body() signUpDto: SignUpDto, @Res() res: Response) {
         try {
             const result = await this.authService.signUp(signUpDto, res);
@@ -43,13 +45,21 @@ export class AuthController {
     async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
         try {
             const result = await this.authService.login(loginDto, res);
+            if (!result) {
+                throw new NotFoundError('User Not Found')
+            }
             return {
                 statusCode: HttpStatus.OK,
                 message: 'Login successful',
-                user: result.user
+                user: {
+                    email: result.user.email,
+                    firstName: result.user.firstName,
+                    lastName: result.user.lastName,
+                    role: result.user.role
+                }
             };
         } catch (error) {
-            if (error instanceof ConflictException) {
+            if (error instanceof HttpException) {
                 throw error;
             }
             throw new InternalServerErrorException('An unexpected error occurred during login.');
@@ -64,9 +74,20 @@ export class AuthController {
 
     @Get('google/redirect')
     @UseGuards(AuthGuard('google'))
-    async googleAuthRedirect(@Req() req, @Res() res: Response) {
+    async googleAuthRedirect(@Req() req, @Res() res: Response, @Query('userType') userType?: string) {
         try {
-            const token = await this.authService.validateOAuthLogin(req.user, 'google');
+
+            let validatedUserType: UserRole | undefined;
+
+            if (userType) {
+                if (userType === UserRole.NORMAL_USER || userType === UserRole.SELLER) {
+                    validatedUserType = userType as UserRole;
+                } else {
+                    throw new BadRequestException('Invalid user type. Must be "normal_user" or "seller".');
+                }
+            }
+
+            const token = await this.authService.validateOAuthLogin(req.user, 'google', userType);
             res.cookie('access_token', token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
@@ -158,6 +179,13 @@ export class AuthController {
             }
             throw new InternalServerErrorException('An unexpected error occurred during password update.');
         }
+    }
+
+    @Get('currentuser')
+    async getCurrentUserInfo(@Request() req: { user: User }) {
+        console.log(req.user);
+
+        return req.user;
     }
 }
 

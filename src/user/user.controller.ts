@@ -4,17 +4,18 @@ import { User } from './schemas/user.schema';
 import { EmailDto } from 'src/auth/dto/email.dto';
 import { JwtAuthGuard } from 'src/common/guards/authentication.guard';
 import { minutes, Throttle } from '@nestjs/throttler';
+import { AuthGuard } from '@nestjs/passport';
 
 
 
 @Controller('users')
-@UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, AuthGuard('jwt'))
 @Throttle({ default: { ttl: minutes(60), limit: 100 } })
 export class UserController {
 
     constructor(private userService: UserService) { }
 
-    @Get('email')
+    @Get('user-email')
     @Throttle({ userController: {} })
     async getUserByEmail(@Body() emailDto: EmailDto): Promise<User> {
         try {

@@ -22,7 +22,8 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { OtpModule } from './otp/otp.module';
 import configuration from './config/configuration';
 import { JwtModule, JwtService } from '@nestjs/jwt';
-
+import { ImageProcessingService } from './product/image-process.service';
+import { CacheModule } from '@nestjs/cache-manager';
 @Module({
   imports: [AuthModule,
     ConfigModule.forRoot({
@@ -68,6 +69,7 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
         }
       ]
     }),
+    CacheModule.register(),
     UserModule,
     StoreModule,
     ProductModule,
@@ -78,7 +80,7 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
     SystempagesModule,
     OtpModule],
   controllers: [AppController, WishlistController, SystempagesController],
-  providers: [AppService, WishlistService, SystempagesService, JwtService, {
+  providers: [AppService, WishlistService, SystempagesService, JwtService, ImageProcessingService, {
     provide: APP_GUARD,
     useClass: ThrottlerGuard,
   }],

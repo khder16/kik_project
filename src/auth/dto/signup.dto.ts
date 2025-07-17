@@ -6,8 +6,19 @@ import {
     MaxLength,
     Matches,
     IsOptional,
+    IsEnum,
 } from 'class-validator';
 import { Transform } from "class-transformer";
+
+
+
+export enum UserRole {
+    NORMAL_USER = 'normal_user',
+    SELLER = 'seller',
+    ADMIN = 'admin',
+    SUPER_ADMIN = 'super_admin',
+}
+
 
 export class SignUpDto {
 
@@ -41,6 +52,8 @@ export class SignUpDto {
 
     @IsNotEmpty({ message: 'Phone number cannot be empty when provided.' })
     @IsString()
+    @MinLength(10, { message: 'Phone number must be at least 10 characters long.' })
+    @MaxLength(15, { message: 'Phone number cannot be longer than 15 characters.' })
     phoneNumber: string
 
 
@@ -56,4 +69,10 @@ export class SignUpDto {
     @IsNotEmpty({ message: 'Facebook ID cannot be empty when provided.' }) // Ensures if provided, it's not an empty string
     @MaxLength(255, { message: 'Facebook ID cannot be longer than 255 characters.' }) // Example max length
     facebookId?: string;
+
+    @IsEnum(UserRole, {
+        message: `Role must be one of: ${Object.values(UserRole).join(', ')}`
+    })
+    @IsString()
+    role?: UserRole
 }

@@ -9,8 +9,8 @@ import { Request } from 'express'; // Import Request from express for type safet
 
 export interface JwtPayload {
     email: string;
-    id: string; 
-
+    id: string;
+    role: string;
 }
 
 @Injectable()
