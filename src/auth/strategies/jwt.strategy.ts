@@ -11,6 +11,7 @@ export interface JwtPayload {
     email: string;
     id: string;
     role: string;
+    country: string
 }
 
 @Injectable()
@@ -25,11 +26,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
                     if (request && request.cookies) {
                         return request.cookies['access_token'];
                     }
-                    return null; 
+                    return null;
                 },
                 ExtractJwt.fromAuthHeaderAsBearerToken(),
             ]),
-            ignoreExpiration: false, 
+            ignoreExpiration: false,
             secretOrKey: configService.get<string>('jwt.secret'),
         });
     }
@@ -40,8 +41,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         if (!user) {
             throw new UnauthorizedException('User not found or invalid token.');
         }
+        const result = { _id: user.id, email: user.email, role: user.role, country: user.country }
 
-        const { password, ...result } = user.toObject(); 
         return result as User;
     }
 

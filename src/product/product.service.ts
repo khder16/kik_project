@@ -1,10 +1,10 @@
-import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Product } from './schemas/product.schema';
 import { Model } from 'mongoose';
 import { ProductDto } from './dto/product.dto';
-import path, { join } from 'path';
 import { unlink, access } from 'fs/promises';
+import { CountryDto } from 'src/auth/dto/selectCountry.dto';
 @Injectable()
 export class ProductService {
 
@@ -95,12 +95,16 @@ export class ProductService {
     }
 
 
-    async getProductsByStoreId(storeId: string, page: number, limit: number) {
+    async getProductsByStoreId(storeId: string, page: number, limit: number, country: string) {
         try {
             const skip = (page - 1) * limit;
-            return await this.productModel.find({ store: storeId })
+            return await this.productModel.
+                find({
+                    store: storeId,
+                    'store.country': country
+                })
                 .select('_id name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
-                .skip(skip).limit(limit).lean()
+                .skip(skip).limit(limit).lean().exec();
         } catch (error) {
             this.logger.error(`Error get products: ${error.message}`, error.stack);
             throw new InternalServerErrorException('Failed to get products due to an unexpected server error.');
@@ -108,7 +112,7 @@ export class ProductService {
     }
 
 
-    async filteredProducts(category?: string, minPrice?: number, maxPrice?: number, page: number = 1, limit: number = 20) {
+    async filteredProducts(category?: string, minPrice?: number, maxPrice?: number, page: number = 1, limit: number = 20, country?: string) {
         try {
             const skip = (page - 1) * limit
 
@@ -124,9 +128,14 @@ export class ProductService {
             if (maxPrice !== undefined && maxPrice !== null && !isNaN(maxPrice)) {
                 query.price = { ...query.price, $lte: maxPrice };
             }
+            if (country) {
+                query['store.country'] = country;
+            }
+
             const products = await this.productModel
                 .find(query)
                 .select('_id name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
+                .populate('store', '_id name country')
                 .skip(skip)
                 .limit(limit)
                 .exec();
@@ -137,11 +146,26 @@ export class ProductService {
         }
     }
 
-    async getProductById(id: string): Promise<Product> {
+    async getProductById(_id: string, countryUser: string): Promise<Product> {
+        try {
+            return await this.productModel.findOne({ _id, 'store.country': countryUser })
+                .select('_id name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
+                .lean()
+                .exec();
+        } catch (error) {
+            this.logger.error(`Error get products: ${error.message}`, error.stack);
+            throw new InternalServerErrorException('Failed to get products due to an unexpected server error.');
+        }
+    }
+
+
+
+    async findOneById(id: string): Promise<Product> {
         try {
             return await this.productModel.findById(id)
                 .select('_id name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
                 .lean()
+                .exec();
         } catch (error) {
             this.logger.error(`Error get products: ${error.message}`, error.stack);
             throw new InternalServerErrorException('Failed to get products due to an unexpected server error.');
@@ -166,6 +190,42 @@ export class ProductService {
     }
 
 
+    async searchProducts(search: string, lang: string) {
+        try {
+            if (!search || search.trim().length < 2) {
+                throw new BadRequestException('Search term must be at least 2 characters');
+            }
+            // 2. Decode and sanitize
+            const decodedSearch = decodeURIComponent(search.trim());
+            // Prevent regex injection
+            const sanitizedSearch = this.escapeRegex(decodedSearch);
+            const products = await this.productModel
+                .find({
+                    $or: [
+                        { name_ar: { $regex: sanitizedSearch, $options: 'i' } },
+                        { name_en: { $regex: sanitizedSearch, $options: 'i' } }, // Fixed: Use decodedSearch here too
+                        { name_no: { $regex: sanitizedSearch, $options: 'i' } },
+                        { description_ar: { $regex: sanitizedSearch, $options: 'i' } },
+                        { description_en: { $regex: sanitizedSearch, $options: 'i' } }, // Fixed
+                        { description_no: { $regex: sanitizedSearch, $options: 'i' } }
+                    ]
+                })
+                .collation({ locale: 'ar', strength: 2 })
+                .maxTimeMS(5000) // Timeout after 5 seconds
+                .lean()
+                .exec();
 
+
+            return products || [];
+
+        } catch (error) {
+            this.logger.error(`Product search failed for term "${search}"`, error.stack);
+            throw new InternalServerErrorException('Search operation failed');
+        }
+    }
+
+    private escapeRegex(text: string): string {
+        return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+    }
 
 }

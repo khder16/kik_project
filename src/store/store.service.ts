@@ -9,7 +9,7 @@ import { join } from 'path';
 import { Product } from 'src/product/schemas/product.schema';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-
+import * as fs from 'fs'
 @Injectable()
 export class StoreService {
 
@@ -22,7 +22,7 @@ export class StoreService {
 
     private readonly logger = new Logger(StoreService.name);
 
-    async createStore(storeData: CreateStoreDto, ownerId: string): Promise<Store> {
+    async createStore(storeData: CreateStoreDto, ownerId: string, imagePath?: string): Promise<Store> {
         try {
             // Check for existing store with the same name
             const storeWithSameName = await this.storeModel.findOne({ name: storeData.name });
@@ -61,7 +61,8 @@ export class StoreService {
             }
             const newStore = {
                 ...storeData,
-                owner: ownerId
+                owner: ownerId,
+                image: imagePath
             };
             const createdStore = new this.storeModel(newStore)
             return await createdStore.save()
@@ -71,7 +72,7 @@ export class StoreService {
         }
     }
 
-    async updateStore(storeId: string, storeData: UpdateStoreDto, ownerId: string): Promise<Store> {
+    async updateStore(storeId: string, storeData: UpdateStoreDto, ownerId: string, imagePath?: string): Promise<Store> {
         try {
             const store = await this.storeModel.findById(storeId)
             if (!store) {
@@ -81,6 +82,20 @@ export class StoreService {
             if (ownerId !== store.owner.toString()) {
                 throw new UnauthorizedException('Only Owner Cat=n Update this Store')
             }
+
+            // 3. Update store data
+            if (imagePath) {
+                // Delete old image if it exists and is being replaced
+                if (store.image) {
+                    try {
+                        await unlink(join(process.cwd(), store.image));
+                    } catch (err) {
+                        this.logger.warn(`Failed to delete old store image: ${store.image}`);
+                    }
+                }
+                storeData.image = imagePath;
+            }
+
             store.set(storeData)
             return await store.save();
         } catch (error) {
@@ -146,6 +161,16 @@ export class StoreService {
         } catch (error) {
             this.logger.error(`Failed to fetch stores: ${error.message}`, error.stack);
             throw new InternalServerErrorException('Failed to retrieve stores');
+        }
+    }
+
+    async getStoresByOwnerId(ownerId: string) {
+        try {
+            const stores = await this.storeModel.countDocuments({ owner: ownerId }).lean().exec();
+            return stores
+        } catch (error) {
+            this.logger.error(`Failed to fetch stores for this ownerId ${ownerId}: ${error.message}`, error.stack);
+            throw new InternalServerErrorException('Failed to retrieve store');
         }
     }
 

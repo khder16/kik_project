@@ -1,4 +1,4 @@
-import { Body, Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from './schemas/user.schema';
 import { EmailDto } from 'src/auth/dto/email.dto';
@@ -29,5 +29,11 @@ export class UserController {
     async getAllUsers() {
         const users = await this.userService.findAll()
         return users;
+    }
+
+    @Post('ste-user-country')
+    async setCountryToUser() {
+
+
     }
 }

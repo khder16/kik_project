@@ -3,8 +3,7 @@ import { IsNumber, IsString, IsNotEmpty, Min, IsOptional } from 'class-validator
 
 export class ProductDto {
     @IsString({ message: 'Name (English) must be a string' })
-    @IsNotEmpty({ message: 'Name (English) is required' })
-        
+    @IsNotEmpty({ message: 'Name (English) is required' })   
     name_en?: string;
 
     @IsString({ message: 'Name (Arabic) must be a string' })

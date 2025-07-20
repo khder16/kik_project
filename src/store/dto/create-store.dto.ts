@@ -1,6 +1,10 @@
-import { IsArray, IsEmail, IsMongoId, IsNotEmpty, IsOptional, IsString, IsUrl } from "class-validator";
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl } from "class-validator";
 
 
+export enum CountryEnum {
+    SYRIA = 'syria',
+    NORWAY = 'norway'
+}
 
 export class CreateStoreDto {
 
@@ -40,8 +44,10 @@ export class CreateStoreDto {
     @IsNotEmpty()
     category: string
 
-
-    // @IsArray({ message: 'Image URLs must be an array.' })
-    // @IsUrl({}, { each: true, message: 'Each image URL in the array must be a valid URL.' })
-    // imageUrls?: string[];
+    @IsString()
+    @IsEnum(CountryEnum, {
+        message: `Role must be one of: ${Object.values(CountryEnum).join(', ')}`
+    })
+    @IsNotEmpty({ message: 'Country Required' })
+    country: CountryEnum;
 }

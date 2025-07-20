@@ -143,8 +143,24 @@ export class UserService {
         return true;
     }
 
-
-
+    async findByIdAndUpdateCountry(userId: string, country: 'syria' | 'norway'): Promise<User> {
+        try {
+            if (!userId) {
+                throw new NotFoundException('User ID NotFound')
+            }
+            if (!country) {
+                throw new NotFoundException('User ID NotFound')
+            }
+            const updatedUser = await this.userModel.findByIdAndUpdate(userId, { country }, { new: true })
+            if (!updatedUser) {
+                throw new NotFoundException('User NotFound')
+            }
+            return updatedUser;
+        } catch (error) {
+            this.logger.error(`Error updating user (${userId}): ${error.message}`, error.stack);
+            throw new InternalServerErrorException('Failed to update user due to an unexpected server error.');
+        }
+    }
     // async findAll(
     //     page = 1,
     //     limit = 10,

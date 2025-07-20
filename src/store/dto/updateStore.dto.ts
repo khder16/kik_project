@@ -1,4 +1,5 @@
-import { IsArray, IsEmail, IsMongoId, IsNotEmpty, IsOptional, IsString, IsUrl } from "class-validator";
+import { IsArray, IsEmail, IsEnum, IsMongoId, IsNotEmpty, IsOptional, IsString, IsUrl } from "class-validator";
+import { CountryEnum } from "./create-store.dto";
 
 
 
@@ -39,5 +40,15 @@ export class UpdateStoreDto {
     @IsNotEmpty()
     category?: string
 
+    @IsString()
+    @IsEnum(CountryEnum, {
+        message: `Role must be one of: ${Object.values(CountryEnum).join(', ')}`
+    })
+    @IsNotEmpty({ message: 'Country Required' })
+    country?: CountryEnum;
+
+    @IsString()
+    @IsOptional()
+    image?: string
 
 }

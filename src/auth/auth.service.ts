@@ -5,7 +5,8 @@ import {
     InternalServerErrorException,
     UnauthorizedException,
     Logger,
-    HttpStatus
+    HttpStatus,
+    NotFoundException
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
@@ -23,7 +24,7 @@ export class AuthService {
         private userService: UserService,
         private configService: ConfigService,
         private jwtService: JwtService,
-        private otpService: OtpService
+        private otpService: OtpService,
     ) { }
 
 
@@ -49,12 +50,14 @@ export class AuthService {
 
         try {
             const hashedPassword = await bcrypt.hash(password, 10);
+
             const newUser = await this.userService.create({
                 ...signUpDto,
                 password: hashedPassword,
                 googleId: null,
                 facebookId: null,
             });
+
 
             const userInfo = {
                 id: newUser._id,
@@ -73,6 +76,7 @@ export class AuthService {
                 email: newUser.email,
                 phone: newUser.phoneNumber,
                 role: newUser.role,
+                country: newUser.country
             };
             const token = this.generateToken(payload);
 
@@ -115,7 +119,8 @@ export class AuthService {
                 id: user._id,
                 email: user.email,
                 phone: user.phoneNumber,
-                role: user.role
+                role: user.role,
+                country: user.country
             };
             const userInfo = {
                 id: user._id,
@@ -124,6 +129,7 @@ export class AuthService {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 role: user.role,
+                country: user.country,
                 createdAt: user.createdAt
             };
 
@@ -165,7 +171,8 @@ export class AuthService {
                     firstName: profile.firstName || null,
                     lastName: profile.lastName || null,
                     role: (userType as UserRole) || UserRole.NORMAL_USER,
-                    phoneNumper: ''
+                    phoneNumper: '',
+                    // country:
                 };
                 if (provider === 'google') {
                     userData['googleId'] = profile.id;
@@ -237,6 +244,31 @@ export class AuthService {
             throw new Error('Failed to update password');
         }
     }
+
+    async setCountry(userId: string, country: 'syria' | 'norway', res: Response) {
+        const user = await this.userService.findByIdAndUpdateCountry(userId, country);
+
+        if (!user) throw new NotFoundException('User not found');
+
+        const payload = {
+            id: user._id,
+            email: user.email,
+            phone: user.phoneNumber,
+            role: user.role,
+            country: user.country
+        };
+
+        const token = this.generateToken(payload)
+        this.setTokenCookie(res, token);
+
+        return {
+            access_token: token,
+            user
+        };
+    }
+
+
+
 
     private generateVerificationCode() {
         const code = Math.floor(100000 + Math.random() * 900000).toString()

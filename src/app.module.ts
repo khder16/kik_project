@@ -24,6 +24,7 @@ import configuration from './config/configuration';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ImageProcessingService } from './product/image-process.service';
 import { CacheModule } from '@nestjs/cache-manager';
+import { ReviewsModule } from './reviews/reviews.module';
 @Module({
   imports: [AuthModule,
     ConfigModule.forRoot({
@@ -78,7 +79,8 @@ import { CacheModule } from '@nestjs/cache-manager';
     WishlistModule,
     NotificationModule,
     SystempagesModule,
-    OtpModule],
+    OtpModule,
+    ReviewsModule],
   controllers: [AppController, WishlistController, SystempagesController],
   providers: [AppService, WishlistService, SystempagesService, JwtService, ImageProcessingService, {
     provide: APP_GUARD,

@@ -19,6 +19,11 @@ export enum UserRole {
     SUPER_ADMIN = 'super_admin',
 }
 
+export enum CountryEnum {
+    SYRIA = 'syria',
+    NORWAY = 'norway'
+}
+
 
 export class SignUpDto {
 
@@ -75,4 +80,11 @@ export class SignUpDto {
     })
     @IsString()
     role?: UserRole
+
+    @IsString()
+    @IsEnum(CountryEnum, {
+        message: `Role must be one of: ${Object.values(CountryEnum).join(', ')}`
+    })
+    country: CountryEnum
+
 }

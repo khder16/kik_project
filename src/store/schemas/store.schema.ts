@@ -10,6 +10,7 @@ export class Store {
   owner: Types.ObjectId;
 
 
+
   @Prop({ type: String, required: true, unique: true, index: true })
   name: string;
 
@@ -21,7 +22,7 @@ export class Store {
   address: string;
 
 
-  @Prop({ type: String }) 
+  @Prop({ type: String })
   phoneNumber: string;
 
 
@@ -41,9 +42,17 @@ export class Store {
   @Prop({ type: Types.ObjectId, ref: 'Category', required: true, index: true })
   category: Types.ObjectId;
 
+  @Prop({
+    type: String,
+    enum: ['syria', 'norway'],
+    required: true,
+    index: true
+  })
+  country: string;
 
-  @Prop([String])
-  imageUrls: string[];
+
+  @Prop({ type: String, default: '' })
+  image?: string;
 
 
 }

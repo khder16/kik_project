@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Res, HttpStatus, UseGuards, Request, Req, InternalServerErrorException, Get, ConflictException, HttpException, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Res, HttpStatus, UseGuards, Request, Req, InternalServerErrorException, Get, ConflictException, HttpException, Query, BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignUpDto, UserRole } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -12,6 +12,8 @@ import { UserService } from 'src/user/user.service';
 import { ForgetPasswordDto } from './dto/forget-password.dto';
 import { User } from 'src/user/schemas/user.schema';
 import { NotFoundError } from 'rxjs';
+import { JwtAuthGuard } from 'src/common/guards/authentication.guard';
+import { CountryDto } from './dto/selectCountry.dto';
 
 
 
@@ -181,14 +183,16 @@ export class AuthController {
         }
     }
 
-    @Get('currentuser')
-    async getCurrentUserInfo(@Request() req: { user: User }) {
-        console.log(req.user);
-
-        return req.user;
+    @Post('select-country')
+    @UseGuards(JwtAuthGuard)
+    async selectCountry(
+        @Req() req: { user: User },
+        @Body() countryDto: CountryDto,
+        @Res({ passthrough: true }) res: Response
+    ) {
+        return await this.authService.setCountry(req.user._id.toString(), countryDto.country, res)
     }
 }
-
 
 
 
