@@ -1,111 +1,72 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { CartItem, CartItemSchema } from '../../cart/schemas/cart-items.schema'; // Reuse CartItemSchema
-
-export type OrderDocument = Order & Document;
 
 export enum OrderStatus {
-  Pending = 'pending',
-  Processing = 'processing',
-  Shipped = 'shipped',
-  Delivered = 'delivered',
-  Cancelled = 'cancelled',
-  Failed = 'failed',
+    PENDING = 'pending',
+    PAID = 'paid',
+    SHIPPED = 'shipped',
+    DELIVERED = 'delivered',
+    CANCELLED = 'cancelled',
+    FAILED = 'failed',
 }
 
-export class ShippingAddress {
-  @Prop({ type: String, required: true })
-  fullName: string;
-
-  @Prop({ type: String, required: true })
-  addressLine1: string;
-
-  @Prop({ type: String })
-  addressLine2?: string;
-
-  @Prop({ type: String, required: true })
-  city: string;
-
-  @Prop({ type: String, required: true })
-  stateProvince: string;
-
-  @Prop({ type: String, required: true })
-  postalCode: string;
-
-  @Prop({ type: String, required: true })
-  country: string;
-
-  @Prop({ type: String })
-  phoneNumber: string;
-
-  @Prop({ type: String })
-  email: string;
-
-  @Prop({
-    type: {
-      latitude: { type: Number },
-      longitude: { type: Number },
-    },
-    _id: false,
-  })
-  coordinates?: { latitude: number; longitude: number }; // For map-based selection
+export enum PaymentMethod {
+    CREDIT_CARD = 'credit_card',
+    PAYPAL = 'paypal',
 }
-
-export const ShippingAddressSchema =
-  SchemaFactory.createForClass(ShippingAddress);
 
 @Schema({ timestamps: true })
-export class Order {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
-  user: Types.ObjectId;
+export class Order extends Document {
+    @Prop({ type: Types.ObjectId, required: true })
+    userId: Types.ObjectId;
 
-  @Prop({ type: [CartItemSchema], required: true })
-  items: CartItem[];
+    @Prop({ type: Object, required: true })
+    billingDetails: {
+        firstName: string;
+        lastName: string;
+        email: string;
+        address: string;
+        country: string;
+        state?: string;
+        phone: string;
+    };
 
-  @Prop({ type: Number, required: true, min: 0 })
-  totalAmount: number;
+    @Prop({ type: Array, required: true })
+    items: Array<{
+        productId: Types.ObjectId;
+        name: string;
+        price: number;
+        quantity: number;
+        image?: string;
+    }>;
 
-  @Prop({
-    type: String,
-    enum: Object.values(OrderStatus),
-    default: OrderStatus.Pending,
-    required: true,
-    index: true,
-  })
-  status: OrderStatus;
+    @Prop({ required: true })
+    subtotal: number;
 
-  @Prop({ type: ShippingAddressSchema, required: true })
-  shippingAddress: ShippingAddress;
+    @Prop({ required: true })
+    shippingCost: number;
 
-  @Prop({ type: String, required: true })
-  paymentMethod: string; // e.g., 'Bank Transfer'
+    @Prop({ required: true })
+    total: number;
 
-  @Prop({ type: String })
-  paymentTransactionId?: string; // Reference to bank transaction ID
+    @Prop({ enum: OrderStatus, default: OrderStatus.PENDING })
+    status: OrderStatus;
 
-  @Prop({ type: Date })
-  paymentDate?: Date;
+    @Prop({ enum: PaymentMethod, required: true })
+    paymentMethod: PaymentMethod;
 
-  @Prop({ type: String, unique: true, index: true })
-  orderNumber: string; // Unique, auto-generated for tracking
+    @Prop({ type: Object })
+    paymentDetails?: {
+        paymentIntentId?: string;
+        paypalOrderId?: string;
+        cardLast4?: string;
+    };
 
-  @Prop({ type: String })
-  trackingNumber?: string; // From shipping carrier
+    @Prop()
+    shippingTracking?: string;
 
-  // Consider adding a history of status changes for tracking
-  @Prop([
-    {
-      status: { type: String, enum: Object.values(OrderStatus) },
-      timestamp: { type: Date, default: Date.now },
-      _id: false,
-    },
-  ])
-  statusHistory: { status: OrderStatus; timestamp: Date }[];
+    @Prop()
+    notes?: string;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
-
-OrderSchema.index({ user: 1 });
-OrderSchema.index({ status: 1 });
-OrderSchema.index({ orderNumber: 1 });
-OrderSchema.index({ createdAt: -1 }); // For recent orders

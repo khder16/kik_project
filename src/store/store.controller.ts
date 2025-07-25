@@ -13,7 +13,7 @@ import { unlink } from 'fs/promises';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { minutes, Throttle } from '@nestjs/throttler';
 import { UserService } from 'src/user/user.service';
-
+import { UserDecorator } from '.././common/decorators/userId.decorator'
 
 
 @Controller('stores')
@@ -26,11 +26,11 @@ export class StoreController {
     @Post('create-store')
     @Throttle({ default: { ttl: minutes(60), limit: 8 } })
     @UseInterceptors(FileInterceptor('image', imageStoreOptions))
-    async createStore(@Body() storeDto: CreateStoreDto, @Request() req: { user: User }, @UploadedFile() image?: Express.Multer.File) {
-        if (req.user.role !== 'seller') {
+    async createStore(@Body() storeDto: CreateStoreDto, @UserDecorator() user: { _id: string, role: string }, @UploadedFile() image?: Express.Multer.File) {
+        if (user.role !== 'seller') {
             throw new ForbiddenException('Only sellers can create stores');
         }
-        const ownerId = req.user._id.toString()
+        const ownerId = user._id
 
         await this.validateStoreLimit(ownerId);
 
@@ -48,12 +48,12 @@ export class StoreController {
     @Patch(':storeId/update-store')
     @Throttle({ default: { ttl: minutes(60), limit: 8 } })
     @UseInterceptors(FileInterceptor('image', imageStoreOptions))
-    async updateStore(@Param('storeId') storeId: string, @Body() updateStoreDto: UpdateStoreDto, @Request() req: { user: User }, @UploadedFile() image?: Express.Multer.File) {
+    async updateStore(@Param('storeId') storeId: string, @Body() updateStoreDto: UpdateStoreDto, @UserDecorator() user: { _id: string, role: string }, @UploadedFile() image?: Express.Multer.File) {
 
-        if (req.user.role !== 'seller') {
+        if (user.role !== 'seller') {
             throw new ForbiddenException('Only sellers can create stores');
         }
-        const ownerId = req.user._id.toString()
+        const ownerId = user._id
 
         let imagePath: string | undefined;
         if (image) {
@@ -64,13 +64,13 @@ export class StoreController {
 
 
     @Delete(':storeId/delete-sotre')
-    async deleteStore(@Param('storeId') storeId: string, @Request() req: { user: User }) {
+    async deleteStore(@Param('storeId') storeId: string, @UserDecorator() user: { _id: string, role: string }) {
 
         // 1. Authorization checks
-        this.validateUserIsSeller(req.user);
-        await this.validateUserOwnsStore(storeId, req.user._id.toString());
-        const isSuperAdmin = req.user.role === 'super_admin';
-        const ownerId = req.user._id.toString()
+        this.validateUserIsSeller(user.role);
+        await this.validateUserOwnsStore(storeId, user._id);
+        const isSuperAdmin = user.role === 'super_admin';
+        const ownerId = user._id
         return this.storeService.deleteStore(storeId, ownerId, isSuperAdmin)
     }
 
@@ -86,12 +86,12 @@ export class StoreController {
         @Param('storeId') storeId: string,
         @UploadedFiles() images: Express.Multer.File[],
         @Body() newProductDto: ProductDto,
-        @Request() req: { user: User }
+        @UserDecorator() user: { _id: string, role: string }
     ) {
 
         // 1. Authorization checks
-        this.validateUserIsSeller(req.user);
-        await this.validateUserOwnsStore(storeId, req.user._id.toString());
+        this.validateUserIsSeller(user.role);
+        await this.validateUserOwnsStore(storeId, user._id);
 
         // 2. Input validation
         this.validateRequiredFields(storeId, images);
@@ -123,11 +123,11 @@ export class StoreController {
         @Param('storeId') storeId: string,
         @Body() updateProductDto: UpdateProductDto,
         @UploadedFiles() images: Express.Multer.File[],
-        @Request() req: { user: User }
+        @UserDecorator() user: { _id: string, role: string }
     ) {
         // 1. Authorization checks
-        this.validateUserIsSeller(req.user);
-        await this.validateUserOwnsStore(storeId, req.user._id.toString());
+        this.validateUserIsSeller(user.role);
+        await this.validateUserOwnsStore(storeId, user._id);
 
         // 2. Input validation
         this.validateRequiredFields(storeId, images);
@@ -145,12 +145,11 @@ export class StoreController {
     async deleteProduct(
         @Param('id') id: string,
         @Param('storeId') storeId: string,
-        @Request() req: { user: User }
+        @UserDecorator() user: { _id: string, role: string }
     ) {
         // 1. Authorization checks
-        this.validateUserIsSeller(req.user);
-        await this.validateUserOwnsStore(storeId, req.user._id.toString());
-
+        this.validateUserIsSeller(user.role);
+        await this.validateUserOwnsStore(storeId, user._id);
         try {
             return await this.productService.deleteProduct(id)
         } catch (error) {
@@ -161,14 +160,16 @@ export class StoreController {
 
 
     @Get(':storeId/get-all-products')
-    async getAllProductsByStore(@Request() req: { user: User }, @Param('storeId') storeId: string, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
-        return await this.productService.getProductsByStoreId(storeId, page, limit, req.user.country)
+    async getAllProductsByStore(@UserDecorator('country') userCountry: string, @Param('storeId') storeId: string, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+        return await this.productService.getProductsByStoreId(storeId, page, limit, userCountry)
     }
 
 
     @Get(':storeId/get-product/:productId')
-    async getOneProduct(@Param('productId') productId: string, @Request() req: { user: User }) {
-        return await this.productService.getProductById(productId, req.user.country)
+    async getOneProduct(@Param('productId') productId: string, @UserDecorator('country') userCountry: string) {
+
+
+        return await this.productService.getProductById(productId, userCountry)
     }
 
 
@@ -182,8 +183,8 @@ export class StoreController {
 
 
     // Helper methods for better organization
-    private validateUserIsSeller(user: User): void {
-        if (user.role !== 'seller' && user.role !== 'super_admin') {
+    private validateUserIsSeller(role: string): void {
+        if (role !== 'seller' && role !== 'super_admin') {
             throw new ForbiddenException('Only sellers can create stores');
         }
     }

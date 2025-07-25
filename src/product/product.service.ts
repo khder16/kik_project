@@ -1,14 +1,15 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Product } from './schemas/product.schema';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ProductDto } from './dto/product.dto';
 import { unlink, access } from 'fs/promises';
-import { CountryDto } from 'src/auth/dto/selectCountry.dto';
+import { Cache } from 'cache-manager'
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 @Injectable()
 export class ProductService {
 
-    constructor(@InjectModel(Product.name) private productModel: Model<Product>) { }
+    constructor(@InjectModel(Product.name) private productModel: Model<Product>, @Inject(CACHE_MANAGER) private cacheManager: Cache) { }
 
 
     private readonly logger = new Logger(ProductService.name);
@@ -56,6 +57,9 @@ export class ProductService {
         } catch (error) {
             await session.abortTransaction();
             this.logger.error(`Error updating product: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to update product due to an unexpected server error.');
         } finally {
             session.endSession();
@@ -88,6 +92,12 @@ export class ProductService {
         } catch (error) {
             await session.abortTransaction();
             this.logger.error(`Error deleting product: ${error.message}`, error.stack);
+
+            if (error instanceof HttpException) throw error;
+            if (error.name === 'MongoNetworkError') {
+                throw new ServiceUnavailableException('Database unavailable');
+            }
+
             throw new InternalServerErrorException('Failed to delete product due to an unexpected server error.');
         } finally {
             session.endSession();
@@ -98,22 +108,49 @@ export class ProductService {
     async getProductsByStoreId(storeId: string, page: number, limit: number, country: string) {
         try {
             const skip = (page - 1) * limit;
-            return await this.productModel.
+
+
+            const cacheKey = `products:${storeId}:${country}:page${page}:limit${limit}`;
+            const cached = await this.cacheManager.get(cacheKey);
+
+
+            if (cached) return cached;
+            const filtered = await this.productModel.
                 find({
                     store: storeId,
                     'store.country': country
                 })
                 .select('_id name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
                 .skip(skip).limit(limit).lean().exec();
+
+
+            // Caching the result
+            await this.cacheManager.set(cacheKey, filtered, 300);
+
+
+
+            return filtered
         } catch (error) {
             this.logger.error(`Error get products: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to get products due to an unexpected server error.');
         }
     }
 
 
-    async filteredProducts(category?: string, minPrice?: number, maxPrice?: number, page: number = 1, limit: number = 20, country?: string) {
+    async filteredProducts(category?: string, minPrice?: number, maxPrice?: number, page: number = 1, limit: number = 20, userCountry?: string) {
+
         try {
+            const cacheKey = `products:${userCountry}:${category}:${minPrice}:${maxPrice}:${page}:${limit}`;
+            const cached = await this.cacheManager.get(cacheKey);
+            if (cached) {
+
+                return cached;
+            }
+
+
             const skip = (page - 1) * limit
 
             const query: any = {};
@@ -128,32 +165,80 @@ export class ProductService {
             if (maxPrice !== undefined && maxPrice !== null && !isNaN(maxPrice)) {
                 query.price = { ...query.price, $lte: maxPrice };
             }
-            if (country) {
-                query['store.country'] = country;
+
+            if (!userCountry) {
+                throw new NotFoundException('user Country not selected')
             }
 
             const products = await this.productModel
                 .find(query)
+                .populate({
+                    path: 'store',
+                    match: { country: userCountry },
+                    select: '_id owner name country'
+                })
                 .select('_id name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
-                .populate('store', '_id name country')
                 .skip(skip)
                 .limit(limit)
-                .exec();
+                .sort({ createdAt: -1 })
+                .lean()
+                .exec()
+                .then(products => products.filter(p => p.store));
+
+            // Caching the results
+            await this.cacheManager.set(cacheKey, products, 300);
+
+
             return products
         } catch (error) {
             this.logger.error(`Error get filtered products: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to get filtered products due to an unexpected server error.');
         }
     }
 
-    async getProductById(_id: string, countryUser: string): Promise<Product> {
+    async getProductById(productId: string, userCountry: string): Promise<Product> {
         try {
-            return await this.productModel.findOne({ _id, 'store.country': countryUser })
+
+            const cacheKey = `product:${productId}:country:${userCountry}`;
+            console.log('Cache key:', cacheKey); // Debugging
+
+            // Try to get from cache
+            const cached = await this.cacheManager.get<Product>(cacheKey);
+            console.log('Cached value:', cached); // Debugging
+
+            if (cached) {
+                console.log('Returning from cache');
+                return cached;
+            }
+
+
+            const product = await this.productModel.findById(productId)
+                .populate({
+                    path: 'store',
+                    match: { country: userCountry },
+                    select: '_id name facebook instagram whatsApp email country'
+                })
                 .select('_id name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
                 .lean()
                 .exec();
+
+            if (!product || !product.store) {
+                throw new NotFoundException('Product not found or not available in your country');
+            }
+
+
+
+            await this.cacheManager.set(cacheKey, product)
+
+            return product;
         } catch (error) {
             this.logger.error(`Error get products: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to get products due to an unexpected server error.');
         }
     }
@@ -168,6 +253,9 @@ export class ProductService {
                 .exec();
         } catch (error) {
             this.logger.error(`Error get products: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to get products due to an unexpected server error.');
         }
     }
@@ -190,7 +278,7 @@ export class ProductService {
     }
 
 
-    async searchProducts(search: string, lang: string) {
+    async searchProducts(search: string, userCountry: string) {
         try {
             if (!search || search.trim().length < 2) {
                 throw new BadRequestException('Search term must be at least 2 characters');
@@ -199,27 +287,42 @@ export class ProductService {
             const decodedSearch = decodeURIComponent(search.trim());
             // Prevent regex injection
             const sanitizedSearch = this.escapeRegex(decodedSearch);
+
+            const cacheKey = `search:${userCountry}:${sanitizedSearch}`;
+
+            const cached = await this.cacheManager.get<Product[]>(cacheKey);
+            if (cached) return cached;
             const products = await this.productModel
                 .find({
                     $or: [
                         { name_ar: { $regex: sanitizedSearch, $options: 'i' } },
-                        { name_en: { $regex: sanitizedSearch, $options: 'i' } }, // Fixed: Use decodedSearch here too
+                        { name_en: { $regex: sanitizedSearch, $options: 'i' } },
                         { name_no: { $regex: sanitizedSearch, $options: 'i' } },
                         { description_ar: { $regex: sanitizedSearch, $options: 'i' } },
-                        { description_en: { $regex: sanitizedSearch, $options: 'i' } }, // Fixed
+                        { description_en: { $regex: sanitizedSearch, $options: 'i' } },
                         { description_no: { $regex: sanitizedSearch, $options: 'i' } }
                     ]
                 })
+                .populate({
+                    path: 'store',
+                    match: { country: userCountry },
+                    select: '_id name country'
+                })
                 .collation({ locale: 'ar', strength: 2 })
                 .maxTimeMS(5000) // Timeout after 5 seconds
+                .sort({ createdAt: -1 })
                 .lean()
-                .exec();
+                .exec()
+                .then(products => products.filter(p => p.store));
 
-
+            await this.cacheManager.set(cacheKey, products, 300);
             return products || [];
 
         } catch (error) {
             this.logger.error(`Product search failed for term "${search}"`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Search operation failed');
         }
     }
@@ -228,4 +331,34 @@ export class ProductService {
         return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
     }
 
+    async findNewArrivals(userCountry: string) {
+        try {
+            const [cars, planets, buildings] = await Promise.all([
+                this.productModel.find({ category: 'cars' })
+                    .sort({ createdAt: -1 })
+                    .limit(4)
+                    .exec(),
+                this.productModel.find({ category: 'planets' })
+                    .sort({ createdAt: -1 })
+                    .limit(4)
+                    .exec(),
+                this.productModel.find({ category: 'buildings' })
+                    .sort({ createdAt: -1 })
+                    .limit(4)
+                    .exec()
+            ]);
+
+            return {
+                newCarsProducts: cars,
+                newPlanetsProducts: planets,
+                newBuildingProducts: buildings
+            };
+        } catch (error) {
+            this.logger.error(`Error get new arrivals products: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
+            throw new InternalServerErrorException('Failed to get new arrivals products due to an unexpected server error.');
+        }
+    }
 }

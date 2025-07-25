@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User } from './schemas/user.schema';
@@ -23,6 +23,9 @@ export class UserService {
             return await createdUser.save();
         } catch (error) {
             this.logger.error(`Error creating user: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to create user due to an unexpected server error.');
         }
     }
@@ -55,6 +58,9 @@ export class UserService {
             return await this.userModel.findOne({ email }).exec();
         } catch (error) {
             this.logger.error(`Error finding user by email (${email}): ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to retrieve user by email due to an unexpected server error.');
         }
     }
@@ -64,7 +70,11 @@ export class UserService {
         try {
             return await this.userModel.findOne({ phoneNumber }).exec();
         } catch (error) {
+
             this.logger.error(`Error finding user by phone number (${phoneNumber}): ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to retrieve user by phone number due to an unexpected server error.');
         }
     }
@@ -74,6 +84,9 @@ export class UserService {
             return await this.userModel.findOne({ googleId }).exec();
         } catch (error) {
             this.logger.error(`Error finding user by Google ID (${googleId}): ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to retrieve user by Google ID due to an unexpected server error.');
         }
     }
@@ -83,6 +96,9 @@ export class UserService {
             return await this.userModel.findOne({ facebookId }).exec();
         } catch (error) {
             this.logger.error(`Error finding user by Facebook ID (${facebookId}): ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to retrieve user by Facebook ID due to an unexpected server error.');
         }
     }
@@ -130,17 +146,29 @@ export class UserService {
 
 
     async updatePasswordUser(email: string, password: string): Promise<boolean> {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const result = await this.userModel.findOneAndUpdate(
-            { email },
-            { password: hashedPassword },
-            { new: true }
-        );
+        try {
+            const hashedPassword = await bcrypt.hash(password, 10);
 
-        if (!result) {
-            throw new NotFoundException('User not found');
+            const result = await this.userModel.findOneAndUpdate(
+                { email },
+                { password: hashedPassword },
+                { new: true }
+            );
+
+            if (!result) {
+                throw new NotFoundException('User not found');
+            }
+
+            return true;
+        } catch (error) {
+            this.logger.error(`Failed to update password for ${email}: ${error.message}`, error.stack);
+
+            if (error instanceof HttpException) {
+                throw error;
+            }
+
+            throw new InternalServerErrorException('Unable to update password due to a server error.');
         }
-        return true;
     }
 
     async findByIdAndUpdateCountry(userId: string, country: 'syria' | 'norway'): Promise<User> {
@@ -158,27 +186,13 @@ export class UserService {
             return updatedUser;
         } catch (error) {
             this.logger.error(`Error updating user (${userId}): ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to update user due to an unexpected server error.');
         }
     }
-    // async findAll(
-    //     page = 1,
-    //     limit = 10,
-    //     filters?: Partial<User>,
-    // ): Promise<{ users: User[]; total: number }> {
-    //     try {
-    //         const query = filters ? this.userModel.find(filters) : this.userModel.find();
 
-    //         const users = await query
-    //             .skip((page - 1) * limit)
-    //             .limit(limit)
-    //             .exec();
-    //         const total = await this.userModel.countDocuments(filters || {}).exec();
-    //         return { users, total };
-    //     } catch (error) {
-    //         throw new InternalServerErrorException('Failed to retrieve users.');
-    //     }
-    // }
 
     async findAll() {
         const users = await this.userModel.find({})

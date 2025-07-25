@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { Store } from './schemas/store.schema';
 import { Model } from 'mongoose';
@@ -68,6 +68,9 @@ export class StoreService {
             return await createdStore.save()
         } catch (error) {
             this.logger.error(`Error creating store: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to create store due to an unexpected server error.');
         }
     }
@@ -100,6 +103,9 @@ export class StoreService {
             return await store.save();
         } catch (error) {
             this.logger.error(`Error update store: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to update store due to an unexpected server error.');
         }
     }
@@ -138,6 +144,9 @@ export class StoreService {
         } catch (error) {
             await session.abortTransaction();
             this.logger.error(`Error delete store: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to delete store due to an unexpected server error.');
         }
         finally {
@@ -160,6 +169,9 @@ export class StoreService {
             return stores;
         } catch (error) {
             this.logger.error(`Failed to fetch stores: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to retrieve stores');
         }
     }
@@ -170,6 +182,9 @@ export class StoreService {
             return stores
         } catch (error) {
             this.logger.error(`Failed to fetch stores for this ownerId ${ownerId}: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to retrieve store');
         }
     }
@@ -188,6 +203,9 @@ export class StoreService {
             return store;
         } catch (error) {
             this.logger.error(`Failed to fetch store ${storeId}: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to retrieve store');
         }
     }
@@ -198,9 +216,12 @@ export class StoreService {
         try {
             await rm(folderPath, { recursive: true, force: true });
             this.logger.log(`Successfully deleted store folder: ${folderPath}`);
-        } catch (err) {
+        } catch (error) {
             // Don't fail the entire operation if folder deletion fails
-            this.logger.warn(`Failed to delete store folder ${folderPath}: ${err.message}`);
+            this.logger.warn(`Failed to delete store folder ${folderPath}: ${error.message}`);
+            if (error instanceof HttpException) {
+                throw error;
+            }
         }
     }
 }

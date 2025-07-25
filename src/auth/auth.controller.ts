@@ -48,7 +48,7 @@ export class AuthController {
         try {
             const result = await this.authService.login(loginDto, res);
             if (!result) {
-                throw new NotFoundError('User Not Found')
+                throw new NotFoundException('User Not Found')
             }
             return {
                 statusCode: HttpStatus.OK,

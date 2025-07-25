@@ -6,7 +6,8 @@ import {
     UnauthorizedException,
     Logger,
     HttpStatus,
-    NotFoundException
+    NotFoundException,
+    HttpException
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
@@ -190,6 +191,9 @@ export class AuthService {
             const token = this.generateToken(payload);
             return token;
         } catch (error) {
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('An unexpected error occurred during social login.');
         }
     }
@@ -203,6 +207,7 @@ export class AuthService {
             path: '/',
         });
     }
+
 
     async requestOtpCode(email: string) {
         try {
@@ -221,6 +226,9 @@ export class AuthService {
             };
         } catch (error) {
             this.logger.error(`Error during password reset: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Failed to send OTP code');
         }
     }
@@ -241,31 +249,51 @@ export class AuthService {
                 statusCode: HttpStatus.OK
             };
         } catch (error) {
-            throw new Error('Failed to update password');
+            this.logger.error(`Error updating password for ${email}: ${error.message}`, error.stack);
+
+            if (error instanceof HttpException) {
+                throw error;
+            }
+
+            throw new InternalServerErrorException('Failed to update password due to a server error.');
         }
     }
 
     async setCountry(userId: string, country: 'syria' | 'norway', res: Response) {
-        const user = await this.userService.findByIdAndUpdateCountry(userId, country);
+        try {
+            const user = await this.userService.findByIdAndUpdateCountry(userId, country);
 
-        if (!user) throw new NotFoundException('User not found');
+            if (!user) {
+                this.logger.warn(`Attempt to set country for non-existent user ID: ${userId}`);
+                throw new NotFoundException('User not found');
+            }
 
-        const payload = {
-            id: user._id,
-            email: user.email,
-            phone: user.phoneNumber,
-            role: user.role,
-            country: user.country
-        };
+            const payload = {
+                id: user._id,
+                email: user.email,
+                phone: user.phoneNumber,
+                role: user.role,
+                country: user.country
+            };
 
-        const token = this.generateToken(payload)
-        this.setTokenCookie(res, token);
+            const token = this.generateToken(payload);
+            this.setTokenCookie(res, token);
 
-        return {
-            access_token: token,
-            user
-        };
+            return {
+                access_token: token,
+                user
+            };
+        } catch (error) {
+            this.logger.error(`Error setting country for user ${userId}: ${error.message}`, error.stack);
+
+            if (error instanceof HttpException) {
+                throw error;
+            }
+
+            throw new InternalServerErrorException('Failed to set country due to a server error.');
+        }
     }
+
 
 
 
@@ -286,7 +314,7 @@ export class AuthService {
         const cookieOptions = {
             httpOnly: true,
             secure: this.configService.get<string>('NODE_ENV') === 'production',
-            maxAge: 72 * 60 * 60 * 1000,
+            maxAge: 24 * 60 * 60 * 1000,
             sameSite: 'strict' as const,
             path: '/',
         };

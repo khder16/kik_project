@@ -4,11 +4,14 @@ import { ProductController } from './product.controller';
 import { Product, ProductSchema } from './schemas/product.schema';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ImageProcessingService } from './image-process.service';
-import { ReviewsService } from 'src/reviews/reviews.service';
 import { ReviewsModule } from 'src/reviews/reviews.module';
+import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]), ReviewsModule],
+  imports: [MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]), CacheModule.register({
+    ttl: 300,
+    max: 500,
+  }), ReviewsModule],
   providers: [ProductService, ImageProcessingService],
   controllers: [ProductController],
   exports: [ProductService, MongooseModule, ImageProcessingService]

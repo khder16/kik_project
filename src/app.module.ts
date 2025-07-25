@@ -11,7 +11,6 @@ import { CartModule } from './cart/cart.module';
 import { OrderModule } from './order/order.module';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { WishlistController } from './wishlist/wishlist.controller';
-import { WishlistService } from './wishlist/wishlist.service';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { NotificationModule } from './notification/notification.module';
 import { SystempagesController } from './systempages/systempages.controller';
@@ -25,12 +24,19 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ImageProcessingService } from './product/image-process.service';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ReviewsModule } from './reviews/reviews.module';
+import { ScheduleModule } from '@nestjs/schedule';
+
+
+
+
 @Module({
   imports: [AuthModule,
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration]
     }),
+
+    // JWT Config Setup
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -39,6 +45,8 @@ import { ReviewsModule } from './reviews/reviews.module';
       }),
       inject: [ConfigService],
     }),
+
+    // NodeMailer Config Setup
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -52,16 +60,21 @@ import { ReviewsModule } from './reviews/reviews.module';
         },
       }),
     }),
+
+    // MongoDB Configusing mongoose Config Setup
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get<string>('database.MONGO_URI'),
+        // uri: 'mongodb://localhost:27017/kikapp',
         maxPoolSize: 10,
         retryAttempts: 3,
         retryDelay: 1000,
       }),
       inject: [ConfigService],
     }),
+
+    // Throttler for rate limit Config Setup
     ThrottlerModule.forRoot({
       throttlers: [
         {
@@ -70,7 +83,13 @@ import { ReviewsModule } from './reviews/reviews.module';
         }
       ]
     }),
-    CacheModule.register(),
+    // Cache Config Setup
+    CacheModule.register({
+      isGlobal: true
+    }),
+    // Schedule for sheduling tasks
+    ScheduleModule.forRoot(),
+
     UserModule,
     StoreModule,
     ProductModule,
@@ -80,9 +99,10 @@ import { ReviewsModule } from './reviews/reviews.module';
     NotificationModule,
     SystempagesModule,
     OtpModule,
-    ReviewsModule],
+    ReviewsModule
+  ],
   controllers: [AppController, WishlistController, SystempagesController],
-  providers: [AppService, WishlistService, SystempagesService, JwtService, ImageProcessingService, {
+  providers: [AppService, SystempagesService, JwtService, ImageProcessingService, {
     provide: APP_GUARD,
     useClass: ThrottlerGuard,
   }],

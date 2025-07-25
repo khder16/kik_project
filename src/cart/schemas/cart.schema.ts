@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { CartItem, CartItemSchema } from './cart-items.schema'; // Assuming cart-item.schema.ts
+import { Product } from 'src/product/schemas/product.schema';
 
 export type CartDocument = Cart & Document;
 
@@ -9,14 +9,27 @@ export class Cart {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
   user: Types.ObjectId;
 
-  @Prop({ type: [CartItemSchema], default: [] })
-  items: CartItem[];
+
+  @Prop({
+    type: [
+      {
+        product: { type: Types.ObjectId, ref: 'Product', required: true },
+        price: { type: Number, required: true, min: 0 },
+        quantity: { type: Number, required: true, min: 1 },
+      }],
+    default: []
+  })
+  items: {
+    product: Types.ObjectId,
+    price: number
+    quantity: number
+  }[];
 
   @Prop({ type: Number, default: 0, min: 0 })
-  totalPrice: number; // Calculated field, but can be stored for quick access
+  totalPrice: number;
 
-  @Prop({ type: Boolean, default: false })
-  isConvertedToOrder: boolean; // Flag to indicate if cart has been ordered
+  @Prop({ type: Date, default: () => new Date(Date.now() + 2 * 60 * 60 * 1000), index: { expires: '2h' } })
+  expiresAt: Date;
 }
 
 export const CartSchema = SchemaFactory.createForClass(Cart);

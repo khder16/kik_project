@@ -21,5 +21,8 @@ export default () => ({
     nodemailer: {
         emailUser: process.env.EMAIL_USER,
         emailAppPassword: process.env.EMAIL_APP_PASSWORD
+    },
+    stripePayment: {
+        stripeKey: process.env.STRIPE_SECRET_KEY
     }
 })
