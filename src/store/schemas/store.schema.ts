@@ -3,6 +3,15 @@ import { Document, Types } from 'mongoose';
 
 export type StoreDocument = Store & Document;
 
+
+export enum StoreCategory {
+  PLANTS = 'plants',
+  CARS = 'cars',
+  BUILDINGS = 'buildings',
+  OTHER = 'other',
+}
+
+
 @Schema({ timestamps: true })
 export class Store {
 
@@ -39,8 +48,14 @@ export class Store {
   whatsApp?: string;
 
 
-  @Prop({ type: Types.ObjectId, ref: 'Category', required: true, index: true })
-  category: Types.ObjectId;
+  @Prop({
+    type: String,
+    enum: StoreCategory,
+    required: true,
+    index: true
+  })
+  category: StoreCategory;
+
 
   @Prop({
     type: String,

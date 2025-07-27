@@ -203,8 +203,8 @@ export class StoreController {
 
     private validateStoreLimit = async (ownerId: string) => {
         const stores = await this.storeService.getStoresByOwnerId(ownerId)
-        if (stores >= 3) {
-            throw new ConflictException('User cannot have more than 3 stores.');
+        if (stores >= 1) {
+            throw new ConflictException('User cannot have more than 1 store.');
         }
     }
 }

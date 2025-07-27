@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import * as sharp from 'sharp';
 import * as path from 'path';
 import * as fs from 'fs';
-import { Express } from 'express';
 
 @Injectable()
 export class ImageProcessingService {

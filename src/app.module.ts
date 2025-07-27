@@ -8,7 +8,7 @@ import { UserModule } from './user/user.module';
 import { StoreModule } from './store/store.module';
 import { ProductModule } from './product/product.module';
 import { CartModule } from './cart/cart.module';
-import { OrderModule } from './order/order.module';
+// import { OrderModule } from './order/order.module';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { WishlistController } from './wishlist/wishlist.controller';
 import { WishlistModule } from './wishlist/wishlist.module';
@@ -94,7 +94,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     StoreModule,
     ProductModule,
     CartModule,
-    OrderModule,
+    // OrderModule,
     WishlistModule,
     NotificationModule,
     SystempagesModule,

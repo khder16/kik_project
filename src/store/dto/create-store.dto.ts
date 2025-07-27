@@ -1,9 +1,16 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl } from "class-validator";
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl, Matches } from "class-validator";
 
 
 export enum CountryEnum {
     SYRIA = 'syria',
     NORWAY = 'norway'
+}
+
+export enum StoreCategory {
+    PLANTS = 'plants',
+    CARS = 'cars',
+    BUILDINGS = 'buildings',
+    OTHER = 'other',
 }
 
 export class CreateStoreDto {
@@ -42,7 +49,8 @@ export class CreateStoreDto {
 
     @IsString()
     @IsNotEmpty()
-    category: string
+    @IsEnum(StoreCategory)
+    category: StoreCategory;
 
     @IsString()
     @IsEnum(CountryEnum, {

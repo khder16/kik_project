@@ -4,6 +4,16 @@ import { Transform } from 'class-transformer';
 
 export type ProductDocument = Product & Document;
 
+
+
+export enum ProductCategory {
+  PLANTS = 'plants',
+  CARS = 'cars',
+  BUILDINGS = 'buildings',
+  OTHER = 'other',
+}
+
+
 @Schema({ timestamps: true })
 export class Product {
   @Prop({ type: String, index: true })
@@ -32,8 +42,14 @@ export class Product {
     return this.stockQuantity > 0;
   }
 
-  @Prop({ type: Types.ObjectId, ref: 'Category', required: true, index: true })
-  category: Types.ObjectId;
+  @Prop({
+    type: String,
+    enum: ProductCategory,
+    required: true,
+    index: true
+  })
+  category: ProductCategory;
+
 
   @Prop({ type: Types.ObjectId, ref: 'Store', required: true, index: true })
   store: Types.ObjectId;

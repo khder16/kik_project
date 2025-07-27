@@ -38,7 +38,7 @@ export class UserService {
             throw new BadRequestException('Invalid user ID format.');
         }
         try {
-            const user = await this.userModel.findById(id).exec();
+            const user = await this.userModel.findById(id).select('_id firstName lastName email phoneNumber country').lean().exec();
             if (!user) {
                 throw new NotFoundException('User not found.');
             }
@@ -104,6 +104,8 @@ export class UserService {
     }
 
 
+
+
     async update(id: string, updateData: UpdateUserDto): Promise<User> {
         if (!Types.ObjectId.isValid(id)) {
             throw new BadRequestException('Invalid user ID format.');
@@ -145,12 +147,12 @@ export class UserService {
     }
 
 
-    async updatePasswordUser(email: string, password: string): Promise<boolean> {
+    async updatePasswordUser(userId: string, password: string): Promise<boolean> {
         try {
             const hashedPassword = await bcrypt.hash(password, 10);
 
             const result = await this.userModel.findOneAndUpdate(
-                { email },
+                { _id: userId },
                 { password: hashedPassword },
                 { new: true }
             );
@@ -161,7 +163,7 @@ export class UserService {
 
             return true;
         } catch (error) {
-            this.logger.error(`Failed to update password for ${email}: ${error.message}`, error.stack);
+            this.logger.error(`Failed to update password for user with ID: ${userId}: ${error.message}`, error.stack);
 
             if (error instanceof HttpException) {
                 throw error;

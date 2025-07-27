@@ -1,5 +1,5 @@
 import { IsArray, IsEmail, IsEnum, IsMongoId, IsNotEmpty, IsOptional, IsString, IsUrl } from "class-validator";
-import { CountryEnum } from "./create-store.dto";
+import { CountryEnum, StoreCategory } from "./create-store.dto";
 
 
 
@@ -38,7 +38,9 @@ export class UpdateStoreDto {
 
     @IsString()
     @IsNotEmpty()
-    category?: string
+    @IsEnum(StoreCategory)
+    category: StoreCategory;
+
 
     @IsString()
     @IsEnum(CountryEnum, {

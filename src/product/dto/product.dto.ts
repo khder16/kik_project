@@ -1,5 +1,15 @@
 import { Transform } from 'class-transformer'
-import { IsNumber, IsString, IsNotEmpty, Min, IsOptional, MaxLength, Max } from 'class-validator';
+import { IsNumber, IsString, IsNotEmpty, Min, IsOptional, MaxLength, Max, IsEnum } from 'class-validator';
+
+
+
+export enum ProductCategory {
+    PLANTS = 'plants',
+    CARS = 'cars',
+    BUILDINGS = 'buildings',
+    OTHER = 'other',
+}
+
 
 export class ProductDto {
     @IsString({ message: 'Name (English) must be a string' })
@@ -32,8 +42,8 @@ export class ProductDto {
 
     @IsString({ message: 'Category must be a string' })
     @IsNotEmpty({ message: 'Category is required' })
-    @MaxLength(30, { message: 'category cannot be longer than 100 characters.' })
-    category: string;
+    @IsEnum(ProductCategory)
+    category: ProductCategory;
 
     @IsString({ message: 'Description (Arabic) must be a string' })
     @IsOptional()

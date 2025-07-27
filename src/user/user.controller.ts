@@ -5,6 +5,7 @@ import { EmailDto } from 'src/auth/dto/email.dto';
 import { JwtAuthGuard } from 'src/common/guards/authentication.guard';
 import { minutes, Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
+import { UserDecorator } from 'src/common/decorators/userId.decorator';
 
 
 
@@ -24,6 +25,12 @@ export class UserController {
         } catch (error) {
         }
     }
+
+    @Get('user-profile')
+    async getUserProfile(@UserDecorator('_id') userId: string) {
+        return await this.userService.findById(userId)
+    }
+
 
     @Get('all-users')
     async getAllUsers() {

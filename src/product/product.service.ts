@@ -146,7 +146,6 @@ export class ProductService {
             const cacheKey = `products:${userCountry}:${category}:${minPrice}:${maxPrice}:${page}:${limit}`;
             const cached = await this.cacheManager.get(cacheKey);
             if (cached) {
-
                 return cached;
             }
 

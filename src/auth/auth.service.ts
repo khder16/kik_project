@@ -18,6 +18,8 @@ import * as bcrypt from 'bcryptjs';
 import { LoginDto } from './dto/login.dto';
 import { User, UserRole } from 'src/user/schemas/user.schema';
 import { OtpService } from 'src/otp/otp.service';
+import { ChangePasswordDto } from './dto/changePassword.dto'
+
 
 @Injectable()
 export class AuthService {
@@ -294,7 +296,27 @@ export class AuthService {
         }
     }
 
+    async changePassword(userId: string, newPasswordDto: ChangePasswordDto) {
+        try {
+            const user = await this.userService.findById(userId);
+            if (!user) {
+                throw new NotFoundException('User not found');
+            }
+            if (newPasswordDto.newPassword !== newPasswordDto.confirmNewPassword) {
+                throw new BadRequestException('New password and confirm password do not match');
+            }
+            const result = await this.userService.updatePasswordUser(userId, newPasswordDto.newPassword);
 
+        } catch (error) {
+            this.logger.error(`Error change password for user ${userId}: ${error.message}`, error.stack);
+
+            if (error instanceof HttpException) {
+                throw error;
+            }
+
+            throw new InternalServerErrorException('Failed to change password due to a server error.');
+        }
+    }
 
 
 
