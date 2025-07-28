@@ -105,7 +105,7 @@ export class ProductService {
     }
 
 
-    async getProductsByStoreId(storeId: string, page: number, limit: number, country: string) {
+    async getProductsByStoreId(storeId: string, page: number, limit: number, country?: string) {
         try {
             const skip = (page - 1) * limit;
 

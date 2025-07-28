@@ -25,6 +25,7 @@ import { ImageProcessingService } from './product/image-process.service';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ReviewsModule } from './reviews/reviews.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SellerModule } from './seller/seller.module';
 
 
 
@@ -89,7 +90,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     }),
     // Schedule for sheduling tasks
     ScheduleModule.forRoot(),
-
+    SellerModule,
     UserModule,
     StoreModule,
     ProductModule,

@@ -21,6 +21,15 @@ import { OtpService } from 'src/otp/otp.service';
 import { ChangePasswordDto } from './dto/changePassword.dto'
 
 
+
+export interface JwtPayload {
+    email: string;
+    id: string;
+    role: string;
+    country: string
+}
+
+
 @Injectable()
 export class AuthService {
     constructor(
@@ -125,6 +134,7 @@ export class AuthService {
                 role: user.role,
                 country: user.country
             };
+
             const userInfo = {
                 id: user._id,
                 email: user.email,

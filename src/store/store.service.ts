@@ -10,6 +10,7 @@ import { Product } from 'src/product/schemas/product.schema';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import * as fs from 'fs'
+import { log } from 'console';
 @Injectable()
 export class StoreService {
 
@@ -178,10 +179,30 @@ export class StoreService {
 
     async getStoresByOwnerId(ownerId: string) {
         try {
-            const stores = await this.storeModel.countDocuments({ owner: ownerId }).lean().exec();
-            return stores
+            const store = await this.storeModel.find({ owner: ownerId }).lean().exec();
+            if (!store) {
+                throw new NotFoundException('Store not found');
+            }
+            return store
         } catch (error) {
-            this.logger.error(`Failed to fetch stores for this ownerId ${ownerId}: ${error.message}`, error.stack);
+            this.logger.error(`Failed to fetch store for this ownerId ${ownerId}: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
+            throw new InternalServerErrorException('Failed to retrieve store');
+        }
+    }
+
+
+    async getStoresBySellerId(ownerId: string) {
+        try {
+            const store = await this.storeModel.findOne({ owner: ownerId }).lean().exec();
+            if (!store) {
+                throw new NotFoundException('Store not found');
+            }
+            return store
+        } catch (error) {
+            this.logger.error(`Failed to fetch store for this ownerId ${ownerId}: ${error.message}`, error.stack);
             if (error instanceof HttpException) {
                 throw error;
             }

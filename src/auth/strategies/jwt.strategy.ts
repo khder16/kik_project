@@ -41,8 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         if (!user) {
             throw new UnauthorizedException('User not found or invalid token.');
         }
-        const result = { _id: user.id, email: user.email, role: user.role, country: user.country }
-
+        const result = { _id: user._id.toString(), email: user.email, role: user.role, country: user.country }
         return result as User;
     }
 

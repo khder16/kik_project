@@ -32,7 +32,7 @@ export class StoreController {
         }
         const ownerId = user._id
 
-        await this.validateStoreLimit(ownerId);
+        // await this.validateStoreLimit(ownerId);
 
         let imagePath: string | undefined;
         if (image) {
@@ -91,7 +91,7 @@ export class StoreController {
 
         // 1. Authorization checks
         this.validateUserIsSeller(user.role);
-        await this.validateUserOwnsStore(storeId, user._id);
+        await this.validateUserOwnsStore(storeId, user._id.toString());
 
         // 2. Input validation
         this.validateRequiredFields(storeId, images);
@@ -167,8 +167,6 @@ export class StoreController {
 
     @Get(':storeId/get-product/:productId')
     async getOneProduct(@Param('productId') productId: string, @UserDecorator('country') userCountry: string) {
-
-
         return await this.productService.getProductById(productId, userCountry)
     }
 
@@ -180,6 +178,7 @@ export class StoreController {
             console.warn(`Error deleting file ${file.path}:`, err.message);
         }
     }
+
 
 
     // Helper methods for better organization
@@ -201,10 +200,10 @@ export class StoreController {
         if (!images?.length) throw new BadRequestException('At least one product image is required.');
     }
 
-    private validateStoreLimit = async (ownerId: string) => {
-        const stores = await this.storeService.getStoresByOwnerId(ownerId)
-        if (stores >= 1) {
-            throw new ConflictException('User cannot have more than 1 store.');
-        }
-    }
+    // private validateStoreLimit = async (ownerId: string) => {
+    //     const stores = await this.storeService.getStoresByOwnerId(ownerId)
+    //     if (stores.length >= 1) {
+    //         throw new ConflictException('User cannot have more than 1 store.');
+    //     }
+    // }
 }

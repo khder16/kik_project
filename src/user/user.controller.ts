@@ -10,7 +10,7 @@ import { UserDecorator } from 'src/common/decorators/userId.decorator';
 
 
 @Controller('users')
-    @UseGuards(JwtAuthGuard, AuthGuard('jwt'))
+@UseGuards(JwtAuthGuard)
 @Throttle({ default: { ttl: minutes(60), limit: 100 } })
 export class UserController {
 

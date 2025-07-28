@@ -13,22 +13,22 @@ export class CartController {
 
     @Post('add-to-cart')
     async addToCart(@UserDecorator('_id') userId: string, @Body() addToCartDto: AddToCartDto) {
-        return await this.cartService.addToCart(userId.toString(), addToCartDto.productId, addToCartDto.quantity)
+        return await this.cartService.addToCart(userId, addToCartDto.productId, addToCartDto.quantity)
     }
 
     @Get('get-cart-info')
     async getUserCart(@UserDecorator('_id') userId: string, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
-        return await this.cartService.getUserCart(userId.toString(), page, limit)
+        return await this.cartService.getUserCart(userId, page, limit)
     }
 
     @Delete('item/:productId')
     async removeFromCart(@UserDecorator('_id') userId: string, @Param('productId') productId: string) {
-        return this.cartService.removeFromCart(userId.toString(), productId)
+        return this.cartService.removeFromCart(userId, productId)
     }
 
     @Patch('item/:productId')
     async updateCartItem(@UserDecorator('_id') userId: string, @Param('productId') productId: string, @Body() updateItemDto: UpdateCartItemDto) {
-        return this.cartService.updateCartItem(userId.toString(), productId, updateItemDto.quantity)
+        return this.cartService.updateCartItem(userId, productId, updateItemDto.quantity)
     }
 
 }
