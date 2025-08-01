@@ -85,6 +85,6 @@ export class SignUpDto {
     @IsEnum(CountryEnum, {
         message: `Country must be one of: ${Object.values(CountryEnum).join(', ')}`
     })
-    country: CountryEnum
+    country?: CountryEnum
 
 }

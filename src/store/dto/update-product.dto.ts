@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer'
 import { IsNumber, IsString, IsNotEmpty, Min, IsOptional, IsEnum } from 'class-validator';
-import { ProductCategory } from 'src/product/schemas/product.schema';
+import { CategoryEnum } from 'src/common/enum/category.enum';
+
 
 
 
@@ -34,8 +35,9 @@ export class UpdateProductDto {
 
     @IsString({ message: 'Category must be a string' })
     @IsNotEmpty({ message: 'Category is required' })
-    @IsEnum(ProductCategory)
-    category: ProductCategory;
+    @IsOptional()
+    @IsEnum(CategoryEnum)
+    category: CategoryEnum;
 
     @IsString({ message: 'Description (Arabic) must be a string' })
     @IsOptional()

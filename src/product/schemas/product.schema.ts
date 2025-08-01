@@ -4,23 +4,26 @@ import { Transform } from 'class-transformer';
 
 export type ProductDocument = Product & Document;
 
-
-
 export enum ProductCategory {
-  PLANTS = 'plants',
   CARS = 'cars',
+  PLANTS = 'plants',
   BUILDINGS = 'buildings',
-  OTHER = 'other',
+  OTHER = 'other'
+}
+
+export enum CountryEnum {
+  SYRIA = 'syria',
+  NORWAY = 'norway'
 }
 
 
 @Schema({ timestamps: true })
 export class Product {
-  @Prop({ type: String, index: true })
+  @Prop({ type: String, index: true, sparse: true })
   name_en: string; // English product name
-  @Prop({ type: String, index: true })
+  @Prop({ type: String, index: true, sparse: true })
   name_ar: string; // Arabic product name
-  @Prop({ type: String, index: true })
+  @Prop({ type: String, index: true, sparse: true })
   name_no: string; // Norwegian product name
 
   @Prop({ type: String })
@@ -48,7 +51,17 @@ export class Product {
     required: true,
     index: true
   })
-  category: ProductCategory;
+  category: string;
+
+
+  @Prop({
+    type: String,
+    enum: CountryEnum,
+    required: true,
+    index: true
+  })
+  country: string;
+
 
 
   @Prop({ type: Types.ObjectId, ref: 'Store', required: true, index: true })
@@ -60,9 +73,22 @@ export class Product {
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);
+ProductSchema.index({ country: 1, category: 1, createdAt: -1 });
 ProductSchema.index({
-  'store._id': 1,
-  'store.country': 1
+  name_en: 'text',
+  name_ar: 'text',
+  name_no: 'text',
+  description_en: 'text',
+  description_ar: 'text',
+  description_no: 'text'
 }, {
-  name: 'store_country_index'
+  weights: {
+    name_en: 3,
+    name_ar: 3,
+    name_no: 3,
+    description_en: 1,
+    description_ar: 1,
+    description_no: 1
+  },
+  name: 'product_search_index'
 });

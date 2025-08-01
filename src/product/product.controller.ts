@@ -6,7 +6,8 @@ import { CreateReviewDto } from 'src/reviews/dto/create-review.dto';
 import { ReviewsService } from 'src/reviews/reviews.service';
 import { UserDecorator } from 'src/common/decorators/userId.decorator';
 import { CountryEnum } from 'src/auth/dto/signup.dto';
-import { User } from 'src/user/schemas/user.schema';
+import { SearchDto } from './dto/search.dto';
+import { ProductFilterDto } from './dto/filter-serch-query.dto';
 
 
 @Controller('products')
@@ -23,21 +24,18 @@ export class ProductController {
     }
 
     @Get('search')
-    async searchProduct(@Query('search') search: string, @UserDecorator('country') userCountry: CountryEnum) {
-        return await this.productService.searchProducts(search, userCountry)
+    async searchProduct(@Query() query: SearchDto, @UserDecorator('country') userCountry: CountryEnum) {
+        return await this.productService.searchProducts(query, userCountry)
     }
 
     @Get('get-all-products')
     async filterProducts(
-        @Query('category') category: string,
-        @Query('min-price') minPrice: number,
-        @Query('max-price') maxPrice: number,
-        @Query('page') page: number = 1,
-        @Query('limit') limit: number = 20,
+        @Query() filterDto: ProductFilterDto,
         @UserDecorator('country') userCountry: string
     ) {
-        return await this.productService.filteredProducts(category, minPrice, maxPrice, page, limit, userCountry)
+        return await this.productService.filteredProducts(filterDto, userCountry)
     }
+
 
 
 
@@ -52,7 +50,7 @@ export class ProductController {
     @Get(':productId/get-all-reviews')
     async getReviewsForProduct(@Param('productId') productId: string, @Query('page') page: number,
         @Query('limit') limit: number) {
-        return await this.reviewService.getAllReviews(productId, page, limit)
+        return await this.reviewService.getAllReviewsForProduct(productId, page, limit)
     }
 
 

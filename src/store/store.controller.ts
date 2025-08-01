@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, Patch, PayloadTooLargeException, Post, Query, Request, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, Inject, NotFoundException, Param, Patch, PayloadTooLargeException, Post, Query, Request, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { StoreService } from './store.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { User } from 'src/user/schemas/user.schema';
@@ -13,14 +13,16 @@ import { unlink } from 'fs/promises';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { minutes, Throttle } from '@nestjs/throttler';
 import { UserService } from 'src/user/user.service';
-import { UserDecorator } from '.././common/decorators/userId.decorator'
-
+import { UserDecorator } from '../common/decorators/userId.decorator'
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager'
+import { GetStoresByCountryDto } from './dto/get-stores-by-country.dto';
 
 @Controller('stores')
 @UseGuards(JwtAuthGuard)
 export class StoreController {
 
-    constructor(private userService: UserService, private storeService: StoreService, private imagesService: ImageProcessingService, private productService: ProductService) { }
+    constructor(private userService: UserService, private storeService: StoreService, private imagesService: ImageProcessingService, private productService: ProductService, @Inject(CACHE_MANAGER) private cacheManager: Cache) { }
 
 
     @Post('create-store')
@@ -69,15 +71,13 @@ export class StoreController {
         // 1. Authorization checks
         this.validateUserIsSeller(user.role);
         await this.validateUserOwnsStore(storeId, user._id);
-        const isSuperAdmin = user.role === 'super_admin';
         const ownerId = user._id
-        return this.storeService.deleteStore(storeId, ownerId, isSuperAdmin)
+        await this.storeService.deleteStore(storeId, ownerId, false);
     }
 
     @Get('/get-all-stores')
-    async getAllStore(@Query('page') page: number = 1, @Query('limit') limit: number = 10
-    ) {
-        return this.storeService.getAllStores(page, limit)
+    async getAllStore(@Query() getStoreByCountryQuery: GetStoresByCountryDto, @UserDecorator('country') userCountry: string) {
+        return this.storeService.getAllStoresByCountry(getStoreByCountryQuery, userCountry)
     }
 
     @Post(':storeId/add-product')
@@ -116,6 +116,7 @@ export class StoreController {
 
 
 
+
     @UseInterceptors(FilesInterceptor('images', 4, imageStoreOptions))
     @Patch(':storeId/update-product/:id')
     async updateProduct(
@@ -135,11 +136,20 @@ export class StoreController {
             const storeExists = await this.storeService.getStoreById(storeId);
             if (!storeExists) throw new NotFoundException('Store not found.');
             const imagePaths = await this.imagesService.processAndSaveImages(images, storeId);
+
+            // Clear relevant caches
+            await this.cacheManager.del(`product:${id}:*`);
+            await this.cacheManager.del('new_products:*');
+            await this.cacheManager.del('products:filter:*');
+
             return await this.productService.updateProduct(updateProductDto, imagePaths, id);
         } catch (error) {
             throw new BadRequestException(error?.message || 'Failed to update product');
         }
     }
+
+
+
 
     @Delete(':storeId/delete-product/:id')
     async deleteProduct(
@@ -169,6 +179,7 @@ export class StoreController {
     async getOneProduct(@Param('productId') productId: string, @UserDecorator('country') userCountry: string) {
         return await this.productService.getProductById(productId, userCountry)
     }
+
 
 
     async deleteFile(file: Express.Multer.File) {

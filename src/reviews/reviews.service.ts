@@ -7,6 +7,7 @@ import { UserService } from 'src/user/user.service';
 import { ProductService } from 'src/product/product.service';
 import { Cache } from 'cache-manager'
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { CACHE_TTLS } from 'src/common/constant/cache.constants';
 @Injectable()
 
 export class ReviewsService {
@@ -131,7 +132,7 @@ export class ReviewsService {
         }
     }
 
-    async getAllReviews(
+    async getAllReviewsForProduct(
         productId: string,
         page: number = 1,
         limit: number = 10
@@ -209,11 +210,13 @@ export class ReviewsService {
                 totalStars: 0,
                 totalComments: 0
             };
-            await this.cacheManager.set(cacheKey, { reviews, summary }, 300);
+            await this.cacheManager.set(cacheKey, { reviews, summary }, CACHE_TTLS.DETAILS);
             return {
                 reviews,
                 summary: {
-                    averageStarsRating: parseFloat(summary.averageStarsRating.toFixed(1)),
+                    averageStarsRating: summary?.averageStarsRating
+                        ? parseFloat(summary.averageStarsRating.toFixed(1))
+                        : 0,
                     totalStars: summary.totalStars,
                     totalComments: summary.totalComments
                 }

@@ -7,11 +7,9 @@ import { ImageProcessingService } from './image-process.service';
 import { ReviewsModule } from 'src/reviews/reviews.module';
 import { CacheModule } from '@nestjs/cache-manager';
 
+
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]), CacheModule.register({
-    ttl: 300,
-    max: 500,
-  }), ReviewsModule],
+  imports: [MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]), ReviewsModule],
   providers: [ProductService, ImageProcessingService],
   controllers: [ProductController],
   exports: [ProductService, MongooseModule, ImageProcessingService]

@@ -11,6 +11,8 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import * as fs from 'fs'
 import { log } from 'console';
+import { CountryEnum } from 'src/common/enum/country.enum';
+import { GetStoresByCountryDto } from './dto/get-stores-by-country.dto';
 @Injectable()
 export class StoreService {
 
@@ -25,6 +27,10 @@ export class StoreService {
 
     async createStore(storeData: CreateStoreDto, ownerId: string, imagePath?: string): Promise<Store> {
         try {
+            const IsThereStoreWithSmaeOwner = await this.storeModel.findOne({ owner: ownerId });
+            if (IsThereStoreWithSmaeOwner) {
+                throw new ConflictException('You already have store');
+            }
             // Check for existing store with the same name
             const storeWithSameName = await this.storeModel.findOne({ name: storeData.name });
             if (storeWithSameName) {
@@ -84,7 +90,7 @@ export class StoreService {
             }
 
             if (ownerId !== store.owner.toString()) {
-                throw new UnauthorizedException('Only Owner Cat=n Update this Store')
+                throw new UnauthorizedException('Only Owner Can Update this Store')
             }
 
             // 3. Update store data
@@ -110,58 +116,57 @@ export class StoreService {
             throw new InternalServerErrorException('Failed to update store due to an unexpected server error.');
         }
     }
-
-
-    async deleteStore(storeId: string, ownerId: string, isSuperAdmin?: boolean) {
+    async deleteStore(
+        storeId: string,
+        userId?: string,
+        isAdmin: boolean = false
+    ) {
         const session = await this.storeModel.startSession();
         session.startTransaction();
         try {
-            // 1. Verify store exists and check ownership
             const store = await this.storeModel.findById(storeId).session(session);
             if (!store) {
                 throw new NotFoundException('Store not found');
             }
-            if (ownerId !== store.owner.toString() && !isSuperAdmin) {
-                throw new UnauthorizedException('Only the owner or super admin can delete this store');
+
+            // Only check ownership if not an admin
+            if (!isAdmin && userId !== store.owner.toString()) {
+                throw new UnauthorizedException('Only the owner or admin can delete this store');
             }
 
-            // 2. Delete all related products (with their images if needed)
+            // Rest of the deletion logic (same for both cases)
             const products = await this.productModel.find({ store: storeId }).session(session);
-
-            // 3. Delete the store folder and its contents
             const storeImagePath = join(process.cwd(), 'public', 'images', storeId);
             await this.deleteStoreFolder(storeImagePath);
-
-
-
             await this.productModel.deleteMany({ store: storeId }).session(session);
-
             await this.storeModel.deleteOne({ _id: storeId }).session(session);
 
             await session.commitTransaction();
-
             return { message: 'Store and all related products deleted successfully' };
-
         } catch (error) {
             await session.abortTransaction();
-            this.logger.error(`Error delete store: ${error.message}`, error.stack);
-            if (error instanceof HttpException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Failed to delete store due to an unexpected server error.');
-        }
-        finally {
+            this.logger.error(`Error deleting store: ${error.message}`, error.stack);
+            if (error instanceof HttpException) throw error;
+            throw new InternalServerErrorException('Failed to delete store');
+        } finally {
             session.endSession();
         }
     }
 
-
-
-    async getAllStores(page: number = 1, limit: number = 10): Promise<Store[]> {
+    async getAllStoresByCountry(getStoreByCountryQuery: GetStoresByCountryDto, country: string): Promise<Store[]> {
         try {
+
+            const { category, page, limit } = getStoreByCountryQuery
             const skip = (page - 1) * limit;
 
-            const stores = await this.storeModel.find({}).skip(skip).limit(limit)
+            const query: any = {}
+            if (category) {
+                query.category = category
+            }
+            if (country) {
+                query.country = country
+            }
+            const stores = await this.storeModel.find(query).skip(skip).limit(limit)
 
             if (stores.length === 0) {
                 this.logger.log('No stores found in database');
@@ -200,6 +205,7 @@ export class StoreService {
             if (!store) {
                 throw new NotFoundException('Store not found');
             }
+
             return store
         } catch (error) {
             this.logger.error(`Failed to fetch store for this ownerId ${ownerId}: ${error.message}`, error.stack);

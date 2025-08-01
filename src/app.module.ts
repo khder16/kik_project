@@ -26,6 +26,8 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ReviewsModule } from './reviews/reviews.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SellerModule } from './seller/seller.module';
+import { AdminModule } from './admin/admin.module';
+import * as redisStore from 'cache-manager-redis-store';
 
 
 
@@ -85,9 +87,18 @@ import { SellerModule } from './seller/seller.module';
       ]
     }),
     // Cache Config Setup
-    CacheModule.register({
-      isGlobal: true
+    CacheModule.registerAsync({
+      isGlobal: true,
+      useFactory: () => ({
+        store: redisStore,
+        host: 'localhost',
+        port: 6379,
+        ttl: 5 * 60 * 1000, // Cache for 5 minutes
+        retry_delay_on_failover: 100,
+        maxRetriesPerRequest: 3,
+      }),
     }),
+
     // Schedule for sheduling tasks
     ScheduleModule.forRoot(),
     SellerModule,
@@ -100,12 +111,22 @@ import { SellerModule } from './seller/seller.module';
     NotificationModule,
     SystempagesModule,
     OtpModule,
-    ReviewsModule
+    ReviewsModule,
+    AdminModule
   ],
   controllers: [AppController, WishlistController, SystempagesController],
-  providers: [AppService, SystempagesService, JwtService, ImageProcessingService, {
-    provide: APP_GUARD,
-    useClass: ThrottlerGuard,
-  }],
+  providers: [AppService, SystempagesService, JwtService, ImageProcessingService,
+    // Register ThrottlerGuard
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    // Register RolesGuard
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: RolesGuard,
+    // },
+  ],
+
 })
 export class AppModule { }

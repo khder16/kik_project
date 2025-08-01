@@ -1,13 +1,17 @@
-import { BadRequestException, HttpException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Wishlist, WishlistDocument } from './schemas/wishlist.schema';
-import { skip } from 'node:test';
+import { Cache } from 'cache-manager'
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { CACHE_TTLS } from 'src/common/constant/cache.constants';
+import { Product } from 'src/product/schemas/product.schema';
 
 @Injectable()
 export class WishlistService {
     constructor(
         @InjectModel(Wishlist.name) private readonly wishlistModel: Model<Wishlist>,
+        @Inject(CACHE_MANAGER) private cacheManager: Cache
     ) { }
 
     private readonly logger = new Logger(WishlistService.name);
@@ -16,6 +20,12 @@ export class WishlistService {
 
     async getUserWishlist(userId: string, page: number, limit: number) {
         try {
+
+            const cacheKey = `wishlist:${userId}:${page}:${limit}`;
+            const cached = await this.cacheManager.get<Product[]>(cacheKey);
+
+            if (cached) return cached
+
             const skip = (page - 1) * limit
             const wishistPoducts = await this.wishlistModel.find({ user: userId }).populate({
                 path: 'products',
@@ -25,7 +35,11 @@ export class WishlistService {
             if (!wishistPoducts) {
                 throw new NotFoundException(`Wishlist for user ${userId} not found`);
             }
-            return wishistPoducts
+
+            // Caching the results
+            await this.cacheManager.set(cacheKey, wishistPoducts, CACHE_TTLS.CART); // cache for 5 minute
+
+            return { wishistPoducts, countOfItems: wishistPoducts.length, }
         } catch (error) {
             this.logger.error(`Error add to get user wishlist: ${error.message}`, error.stack);
             if (error instanceof HttpException) {
@@ -34,6 +48,38 @@ export class WishlistService {
             throw new InternalServerErrorException('Failed to get user wishlist due to an unexpected server error.');
         }
     }
+
+
+    async toggleWishlist(productId: string, userId: string): Promise<Wishlist> {
+        // Validate IDs
+        if (!Types.ObjectId.isValid(productId)) {
+            throw new NotFoundException('Invalid product ID format');
+        }
+
+        try {
+            // Check if product exists in wishlist
+            const existing = await this.wishlistModel.findOne({
+                user: userId,
+                products: productId
+            });
+            // Clear wishlist cache for user after each toggle
+            await this.cacheManager.del(`wishlist:${userId}:*`);
+
+            // Toggle operation
+            if (existing) {
+                return await this.removeFromWishlist(productId, userId);
+            } else {
+                return await this.addToWishlist(productId, userId);
+            }
+        } catch (error) {
+            this.logger.error(`Error toggling wishlist: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
+            throw new InternalServerErrorException('Failed to update wishlist');
+        }
+    }
+
 
 
     async addToWishlist(productId: string, userId: string): Promise<Wishlist> {

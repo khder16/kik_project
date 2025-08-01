@@ -1,12 +1,11 @@
-import { IsIn, IsString } from "class-validator";
+import { IsEnum, IsIn, IsNotEmpty, IsString } from "class-validator";
+import { CountryEnum } from "./signup.dto";
 
 
 
 
 export class CountryDto {
-
-    @IsIn(['syria', 'norway'], {
-        message: 'Country must be either "syria" or "norway"'
-    })
-    country: 'syria' | 'norway';
+    @IsEnum(CountryEnum)
+    @IsNotEmpty()
+    country: CountryEnum;
 }

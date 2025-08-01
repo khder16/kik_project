@@ -5,6 +5,7 @@ import { User } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcryptjs';
+import { CountryEnum } from 'src/auth/dto/signup.dto';
 
 
 @Injectable()
@@ -50,6 +51,45 @@ export class UserService {
                 throw error;
             }
             throw new InternalServerErrorException('Failed to retrieve seller by ID due to an unexpected server error.');
+        }
+    }
+
+
+    async findAllSellers(page: number, limit: number): Promise<User[]> {
+        try {
+            const skip = (page - 1) * limit
+
+            const sellers = await this.userModel.find({ role: 'seller' }).select('_id firstName lastName role email phoneNumber country').skip(skip).limit(limit).lean().exec();
+            if (!sellers) {
+                throw new NotFoundException('Sellers not found.');
+            }
+
+
+            return sellers;
+        } catch (error) {
+            this.logger.error(`Error finding sellers: ${error.message}`, error.stack);
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new InternalServerErrorException('Failed to retrieve sellers due to an unexpected server error.');
+        }
+    }
+
+
+    async findAllUsers(page: number, limit: number): Promise<User[]> {
+        try {
+            const skip = (page - 1) * limit
+            const users = await this.userModel.find({ role: 'normal_user' }).select('_id firstName lastName role email phoneNumber country').skip(skip).limit(limit).lean().exec();
+            if (!users) {
+                throw new NotFoundException('Users not found.');
+            }
+            return users;
+        } catch (error) {
+            this.logger.error(`Error finding users: ${error.message}`, error.stack);
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new InternalServerErrorException('Failed to retrieve users due to an unexpected server error.');
         }
     }
 
@@ -190,18 +230,19 @@ export class UserService {
         }
     }
 
-    async findByIdAndUpdateCountry(userId: string, country: 'syria' | 'norway'): Promise<User> {
+    async findByIdAndUpdateCountry(userId: string, country: CountryEnum): Promise<User> {
         try {
             if (!userId) {
                 throw new NotFoundException('User ID NotFound')
             }
             if (!country) {
-                throw new NotFoundException('User ID NotFound')
+                throw new NotFoundException('Country NotFound')
             }
             const updatedUser = await this.userModel.findByIdAndUpdate(userId, { country }, { new: true })
             if (!updatedUser) {
                 throw new NotFoundException('User NotFound')
             }
+
             return updatedUser;
         } catch (error) {
             this.logger.error(`Error updating user (${userId}): ${error.message}`, error.stack);

@@ -1,11 +1,13 @@
 import { IsArray, IsEmail, IsEnum, IsMongoId, IsNotEmpty, IsOptional, IsString, IsUrl } from "class-validator";
-import { CountryEnum, StoreCategory } from "./create-store.dto";
+import { CategoryEnum } from "src/common/enum/category.enum";
+import { CountryEnum } from "src/user/schemas/user.schema";
 
 
 
 export class UpdateStoreDto {
     @IsString({ message: 'Store name must be a string.' })
     @IsNotEmpty({ message: 'Store name cannot be empty.' })
+    @IsOptional()
     name?: string;
 
     @IsOptional()
@@ -37,16 +39,16 @@ export class UpdateStoreDto {
     whatsApp?: string;
 
     @IsString()
-    @IsNotEmpty()
-    @IsEnum(StoreCategory)
-    category: StoreCategory;
+    @IsEnum(CategoryEnum)
+    @IsOptional()
+    category?: CategoryEnum;
 
 
     @IsString()
+    @IsOptional()
     @IsEnum(CountryEnum, {
         message: `Role must be one of: ${Object.values(CountryEnum).join(', ')}`
     })
-    @IsNotEmpty({ message: 'Country Required' })
     country?: CountryEnum;
 
     @IsString()

@@ -6,6 +6,13 @@ import { ProductDto } from './dto/product.dto';
 import { unlink, access } from 'fs/promises';
 import { Cache } from 'cache-manager'
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { UpdateProductDto } from 'src/store/dto/update-product.dto';
+import { SearchDto } from './dto/search.dto';
+import { ProductFilterDto } from './dto/filter-serch-query.dto';
+import { CACHE_TTLS } from 'src/common/constant/cache.constants';
+
+
+
 @Injectable()
 export class ProductService {
 
@@ -27,7 +34,7 @@ export class ProductService {
     }
 
 
-    async updateProduct(newProduct: ProductDto, images: string[], id: string): Promise<Product> {
+    async updateProduct(newProduct: UpdateProductDto, images: string[], id: string): Promise<Product> {
         const session = await this.productModel.startSession();
         session.startTransaction();
         try {
@@ -108,12 +115,8 @@ export class ProductService {
     async getProductsByStoreId(storeId: string, page: number, limit: number, country?: string) {
         try {
             const skip = (page - 1) * limit;
-
-
             const cacheKey = `products:${storeId}:${country}:page${page}:limit${limit}`;
-            const cached = await this.cacheManager.get(cacheKey);
-
-
+            const cached = await this.cacheManager.get<Product[]>(cacheKey);
             if (cached) return cached;
             const filtered = await this.productModel.
                 find({
@@ -125,11 +128,9 @@ export class ProductService {
 
 
             // Caching the result
-            await this.cacheManager.set(cacheKey, filtered, 300);
+            await this.cacheManager.set(cacheKey, filtered, CACHE_TTLS.PRODUCTS);
 
-
-
-            return filtered
+            return filtered || []
         } catch (error) {
             this.logger.error(`Error get products: ${error.message}`, error.stack);
             if (error instanceof HttpException) {
@@ -140,15 +141,16 @@ export class ProductService {
     }
 
 
-    async filteredProducts(category?: string, minPrice?: number, maxPrice?: number, page: number = 1, limit: number = 20, userCountry?: string) {
+    async filteredProducts(filterQueryDto: ProductFilterDto, userCountry: string) {
 
         try {
+            const { category, minPrice, maxPrice, page, limit } = filterQueryDto
             const cacheKey = `products:${userCountry}:${category}:${minPrice}:${maxPrice}:${page}:${limit}`;
-            const cached = await this.cacheManager.get(cacheKey);
+            const cached = await this.cacheManager.get<Product[]>(cacheKey);
+
             if (cached) {
                 return cached;
             }
-
 
             const skip = (page - 1) * limit
 
@@ -157,6 +159,8 @@ export class ProductService {
             if (category) {
                 query.category = category
             }
+
+            query.country = userCountry
 
             if (minPrice !== undefined && minPrice !== null && !isNaN(minPrice)) {
                 query.price = { ...query.price, $gte: minPrice };
@@ -173,22 +177,19 @@ export class ProductService {
                 .find(query)
                 .populate({
                     path: 'store',
-                    match: { country: userCountry },
                     select: '_id owner name country'
                 })
-                .select('_id name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
+                .select('_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
                 .skip(skip)
                 .limit(limit)
                 .sort({ createdAt: -1 })
                 .lean()
                 .exec()
-                .then(products => products.filter(p => p.store));
 
             // Caching the results
-            await this.cacheManager.set(cacheKey, products, 300);
+            await this.cacheManager.set(cacheKey, products, CACHE_TTLS.PRODUCTS); // cache for 10 minute
 
-
-            return products
+            return products || []
         } catch (error) {
             this.logger.error(`Error get filtered products: ${error.message}`, error.stack);
             if (error instanceof HttpException) {
@@ -202,14 +203,11 @@ export class ProductService {
         try {
 
             const cacheKey = `product:${productId}:country:${userCountry}`;
-            console.log('Cache key:', cacheKey); // Debugging
 
             // Try to get from cache
             const cached = await this.cacheManager.get<Product>(cacheKey);
-            console.log('Cached value:', cached); // Debugging
 
             if (cached) {
-                console.log('Returning from cache');
                 return cached;
             }
 
@@ -217,7 +215,6 @@ export class ProductService {
             const product = await this.productModel.findById(productId)
                 .populate({
                     path: 'store',
-                    match: { country: userCountry },
                     select: '_id name facebook instagram whatsApp email country'
                 })
                 .select('_id name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
@@ -228,9 +225,7 @@ export class ProductService {
                 throw new NotFoundException('Product not found or not available in your country');
             }
 
-
-
-            await this.cacheManager.set(cacheKey, product)
+            await this.cacheManager.set(cacheKey, product, CACHE_TTLS.PRODUCTS)
 
             return product;
         } catch (error) {
@@ -277,48 +272,63 @@ export class ProductService {
     }
 
 
-    async searchProducts(search: string, userCountry: string) {
+    async searchProducts(querySearch: SearchDto, userCountry: string) {
         try {
+            const { search, page, limit } = querySearch
+
             if (!search || search.trim().length < 2) {
                 throw new BadRequestException('Search term must be at least 2 characters');
             }
+
+            const skip = (page - 1) * limit;
             // 2. Decode and sanitize
             const decodedSearch = decodeURIComponent(search.trim());
             // Prevent regex injection
             const sanitizedSearch = this.escapeRegex(decodedSearch);
+            const cacheKey = `search:${userCountry}:${sanitizedSearch}:${page}:${limit}`;
+            const cached = await this.cacheManager.get<string>(cacheKey);
 
-            const cacheKey = `search:${userCountry}:${sanitizedSearch}`;
+            if (cached) {
+                return cached;
+            }
 
-            const cached = await this.cacheManager.get<Product[]>(cacheKey);
-            if (cached) return cached;
+            const query = {
+                $or: [
+                    { name_ar: { $regex: sanitizedSearch, $options: 'i' } },
+                    { name_en: { $regex: sanitizedSearch, $options: 'i' } },
+                    { name_no: { $regex: sanitizedSearch, $options: 'i' } },
+                    { description_ar: { $regex: sanitizedSearch, $options: 'i' } },
+                    { description_en: { $regex: sanitizedSearch, $options: 'i' } },
+                    { description_no: { $regex: sanitizedSearch, $options: 'i' } }
+                ],
+                country: userCountry
+            };
+            const collationSettings = {
+                'syria': { locale: 'ar', strength: 2 },
+                'norway': { locale: 'nb', strength: 2 }
+            };
+
+
             const products = await this.productModel
-                .find({
-                    $or: [
-                        { name_ar: { $regex: sanitizedSearch, $options: 'i' } },
-                        { name_en: { $regex: sanitizedSearch, $options: 'i' } },
-                        { name_no: { $regex: sanitizedSearch, $options: 'i' } },
-                        { description_ar: { $regex: sanitizedSearch, $options: 'i' } },
-                        { description_en: { $regex: sanitizedSearch, $options: 'i' } },
-                        { description_no: { $regex: sanitizedSearch, $options: 'i' } }
-                    ]
-                })
+                .find(query)
                 .populate({
                     path: 'store',
-                    match: { country: userCountry },
                     select: '_id name country'
                 })
-                .collation({ locale: 'ar', strength: 2 })
-                .maxTimeMS(5000) // Timeout after 5 seconds
+                .collation(
+                    collationSettings[userCountry] || {}
+                )
                 .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
                 .lean()
                 .exec()
-                .then(products => products.filter(p => p.store));
 
-            await this.cacheManager.set(cacheKey, products, 300);
-            return products || [];
+            await this.cacheManager.set(cacheKey, products, CACHE_TTLS.PRODUCTS);
+            return products
 
         } catch (error) {
-            this.logger.error(`Product search failed for term "${search}"`, error.stack);
+            this.logger.error(`Product search failed for term `, error.stack);
             if (error instanceof HttpException) {
                 throw error;
             }
@@ -330,34 +340,124 @@ export class ProductService {
         return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
     }
 
-    async findNewArrivals(userCountry: string) {
-        try {
-            const [cars, planets, buildings] = await Promise.all([
-                this.productModel.find({ category: 'cars' })
-                    .sort({ createdAt: -1 })
-                    .limit(4)
-                    .exec(),
-                this.productModel.find({ category: 'planets' })
-                    .sort({ createdAt: -1 })
-                    .limit(4)
-                    .exec(),
-                this.productModel.find({ category: 'buildings' })
-                    .sort({ createdAt: -1 })
-                    .limit(4)
-                    .exec()
-            ]);
 
-            return {
+
+
+    async findNewArrivals(userCountry: string) {
+        const cacheKey = `new-arrivals:${userCountry}`;
+
+        try {
+            // 1. Try to get from cache first
+            const cached = await this.cacheManager.get<{
+                newCarsProducts: Product[],
+                newPlanetsProducts: Product[],
+                newBuildingProducts: Product[],
+                newOtherProducts: Product[]
+            }>(cacheKey);
+
+            if (cached) {
+                return cached;
+            }
+
+            // 2. Database queries with country filtering
+            const [cars, planets, buildings, other] = await Promise.all([
+                this.productModel.find({
+                    category: 'cars',
+                    country: userCountry
+                }).populate({
+                    path: 'store',
+                    select: '_id owner name country'
+                })
+                    .sort({ createdAt: -1 })
+                    .limit(4)
+                    .lean()
+                    .exec()
+                ,
+
+                this.productModel.find({
+                    category: 'planets',
+                    country: userCountry
+                }).populate({
+                    path: 'store',
+                    select: '_id owner name country'
+                })
+                    .sort({ createdAt: -1 })
+                    .limit(4)
+                    .lean()
+                    .exec()
+                ,
+
+                this.productModel.find({
+                    category: 'buildings',
+                    country: userCountry
+                }).populate({
+                    path: 'store',
+                    select: '_id owner name country'
+                })
+                    .sort({ createdAt: -1 })
+                    .limit(4)
+                    .lean()
+                    .exec()
+                ,
+                this.productModel.find({
+                    category: 'other',
+                    country: userCountry
+                }).populate({
+                    path: 'store',
+                    select: '_id owner name country'
+                })
+                    .sort({ createdAt: -1 })
+                    .limit(4)
+                    .lean()
+                    .exec()
+                ,
+            ])
+            // 3. Prepare response
+            const result = {
                 newCarsProducts: cars,
                 newPlanetsProducts: planets,
-                newBuildingProducts: buildings
+                newBuildingProducts: buildings,
+                newOtherProducts: other
             };
+
+            // 4. Cache the result
+            await this.cacheManager.set(
+                cacheKey,
+                result,
+                CACHE_TTLS.PRODUCTS
+            );
+            return result;
         } catch (error) {
-            this.logger.error(`Error get new arrivals products: ${error.message}`, error.stack);
+            this.logger.error(`Error getting new arrivals: ${error.message}`, error.stack);
             if (error instanceof HttpException) {
                 throw error;
             }
-            throw new InternalServerErrorException('Failed to get new arrivals products due to an unexpected server error.');
+            throw new InternalServerErrorException('Failed to get new arrivals');
         }
     }
+
+
+
+
+    // const aggregationPipeline = [
+    //     {
+    //         $lookup: {
+    //             from: 'stores',
+    //             localField: 'store',
+    //             foreignField: '_id',
+    //             as: 'store'
+    //         }
+    //     },
+    //     { $unwind: '$store' },
+    //     { $match: { 'store.country': userCountry } },
+    //     { $sort: { createdAt: -1 } },
+    //     { $limit: 4 }
+    // ];
+
+    // const[cars, planets, buildings] = await Promise.all([
+    //     this.productModel.aggregate([...aggregationPipeline, { $match: { category: 'cars' } }]),
+    //     this.productModel.aggregate([...aggregationPipeline, { $match: { category: 'planets' } }]),
+    //     this.productModel.aggregate([...aggregationPipeline, { $match: { category: 'buildings' } }])
+    // ]);
+
 }

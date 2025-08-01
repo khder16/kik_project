@@ -12,7 +12,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { UserService } from 'src/user/user.service';
 import { JwtService } from '@nestjs/jwt';
-import { SignUpDto } from './dto/signup.dto';
+import { CountryEnum, SignUpDto } from './dto/signup.dto';
 import { Response } from 'express';
 import * as bcrypt from 'bcryptjs';
 import { LoginDto } from './dto/login.dto';
@@ -271,7 +271,7 @@ export class AuthService {
         }
     }
 
-    async setCountry(userId: string, country: 'syria' | 'norway', res: Response) {
+    async setCountry(userId: string, country: CountryEnum, res: Response) {
         try {
             const user = await this.userService.findByIdAndUpdateCountry(userId, country);
 

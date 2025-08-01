@@ -38,9 +38,5 @@ export class UserController {
         return users;
     }
 
-    @Post('ste-user-country')
-    async setCountryToUser() {
 
-
-    }
 }

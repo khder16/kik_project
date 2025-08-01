@@ -19,7 +19,7 @@ async function bootstrap() {
 
   // Static Folder For Images
   app.use('/public', express.static(join(process.cwd(), 'public')));
-  
+
   // Security Middlewares
   app.use(helmet());
   app.enableCors({
@@ -28,7 +28,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  
+
   // CSRF Protection
   // const {
   //   // invalidCsrfTokenError, 
@@ -65,6 +65,9 @@ async function bootstrap() {
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
+    transformOptions: {
+      enableImplicitConversion: true
+    }
   }));
 
 
@@ -73,6 +76,9 @@ async function bootstrap() {
 
   const httpAdapter = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
+
+
+
 
 
   const port = configService.get<number>('PORT');

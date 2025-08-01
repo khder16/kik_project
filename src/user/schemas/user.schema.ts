@@ -8,6 +8,11 @@ export enum UserRole {
     SUPER_ADMIN = 'super_admin',
 }
 
+export enum CountryEnum {
+    SYRIA = 'syria',
+    NORWAY = 'norway'
+}
+
 @Schema({ timestamps: true })
 export class User extends Document {
     @Prop({ required: true, unique: true, index: true, lowercase: true, match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, })
@@ -25,7 +30,7 @@ export class User extends Document {
     @Prop({ default: '' })
     otpCode: string;
 
-    @Prop({ enum: ['syria', 'norway'] })
+    @Prop({ enum: CountryEnum })
     country: string;
 
     @Prop()

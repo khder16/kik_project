@@ -1,6 +1,6 @@
 import { Controller, Post, Body, Res, HttpStatus, UseGuards, Request, Req, InternalServerErrorException, Get, ConflictException, HttpException, Query, BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SignUpDto, UserRole } from './dto/signup.dto';
+import { CountryEnum, SignUpDto, UserRole } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
@@ -14,6 +14,7 @@ import { User } from 'src/user/schemas/user.schema';
 import { NotFoundError } from 'rxjs';
 import { JwtAuthGuard } from 'src/common/guards/authentication.guard';
 import { CountryDto } from './dto/selectCountry.dto';
+import { UserDecorator } from 'src/common/decorators/userId.decorator';
 
 
 
@@ -183,14 +184,16 @@ export class AuthController {
         }
     }
 
+
+
     @Post('select-country')
     @UseGuards(JwtAuthGuard)
     async selectCountry(
-        @Req() req: { user: User },
+        @UserDecorator('_id') userId: string,
         @Body() countryDto: CountryDto,
         @Res({ passthrough: true }) res: Response
     ) {
-        return await this.authService.setCountry(req.user._id.toString(), countryDto.country, res)
+        return await this.authService.setCountry(userId, countryDto.country as CountryEnum, res)
     }
 }
 

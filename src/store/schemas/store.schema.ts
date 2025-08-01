@@ -1,23 +1,17 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { CategoryEnum } from 'src/common/enum/category.enum';
+import { CountryEnum } from 'src/common/enum/country.enum';
 
 export type StoreDocument = Store & Document;
 
-
-export enum StoreCategory {
-  PLANTS = 'plants',
-  CARS = 'cars',
-  BUILDINGS = 'buildings',
-  OTHER = 'other',
-}
 
 
 @Schema({ timestamps: true })
 export class Store {
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  @Prop({ type: Types.ObjectId, ref: 'User', index: true, required: true })
   owner: Types.ObjectId;
-
 
 
   @Prop({ type: String, required: true, unique: true, index: true })
@@ -48,18 +42,19 @@ export class Store {
   whatsApp?: string;
 
 
+
   @Prop({
     type: String,
-    enum: StoreCategory,
+    enum: CategoryEnum,
     required: true,
     index: true
   })
-  category: StoreCategory;
+  category: CategoryEnum;
 
 
   @Prop({
     type: String,
-    enum: ['syria', 'norway'],
+    enum: CountryEnum,
     required: true,
     index: true
   })
@@ -71,5 +66,6 @@ export class Store {
 
 
 }
+
 
 export const StoreSchema = SchemaFactory.createForClass(Store);

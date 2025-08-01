@@ -1,17 +1,8 @@
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl, Matches } from "class-validator";
+import { CategoryEnum } from "src/common/enum/category.enum";
+import { CountryEnum } from "src/common/enum/country.enum";
 
 
-export enum CountryEnum {
-    SYRIA = 'syria',
-    NORWAY = 'norway'
-}
-
-export enum StoreCategory {
-    PLANTS = 'plants',
-    CARS = 'cars',
-    BUILDINGS = 'buildings',
-    OTHER = 'other',
-}
 
 export class CreateStoreDto {
 
@@ -49,12 +40,12 @@ export class CreateStoreDto {
 
     @IsString()
     @IsNotEmpty()
-    @IsEnum(StoreCategory)
-    category: StoreCategory;
+    @IsEnum(CategoryEnum)
+    category: CategoryEnum;
 
     @IsString()
     @IsEnum(CountryEnum, {
-        message: `Role must be one of: ${Object.values(CountryEnum).join(', ')}`
+        message: `Country must be one of: ${Object.values(CountryEnum).join(', ')}`
     })
     @IsNotEmpty({ message: 'Country Required' })
     country: CountryEnum;
