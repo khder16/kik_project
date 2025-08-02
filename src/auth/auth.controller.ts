@@ -15,6 +15,7 @@ import { NotFoundError } from 'rxjs';
 import { JwtAuthGuard } from 'src/common/guards/authentication.guard';
 import { CountryDto } from './dto/selectCountry.dto';
 import { UserDecorator } from 'src/common/decorators/userId.decorator';
+import { ApiBody, ApiCookieAuth, ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 
 
 
@@ -26,6 +27,26 @@ export class AuthController {
 
     @Post('signup')
     @Throttle({ default: { ttl: minutes(60), limit: 8 } })
+    @ApiOperation({ summary: 'Register a new user' })
+    @ApiBody({
+        type: SignUpDto,
+        description: '[BODY] User registration data',
+        examples: {
+            basic: {
+                value: {
+                    email: 'user@example.com',
+                    password: 'SecurePass123!',
+                    firstName: 'John',
+                    lastName: 'Doe',
+                    phoneNumber: '+1234567890',
+                    country: CountryEnum.NORWAY,
+                    role: UserRole.NORMAL_USER
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 201, description: 'User created successfully' })
+    @ApiResponse({ status: 409, description: 'Email already exists' })
     async signUp(@Body() signUpDto: SignUpDto, @Res() res: Response) {
         try {
             const result = await this.authService.signUp(signUpDto, res);
@@ -45,6 +66,21 @@ export class AuthController {
 
     @Post('login')
     @Throttle({ default: { ttl: minutes(5), limit: 10 } })
+    @ApiOperation({ summary: 'Authenticate user' })
+    @ApiBody({
+        type: LoginDto,
+        description: '[BODY] Login credentials',
+        examples: {
+            basic: {
+                value: {
+                    email: 'user@example.com',
+                    password: 'SecurePass123!'
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 200, description: 'Login successful' })
+    @ApiResponse({ status: 401, description: 'Invalid credentials' })
     async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
         try {
             const result = await this.authService.login(loginDto, res);
@@ -71,12 +107,23 @@ export class AuthController {
 
     @Get('google')
     @UseGuards(AuthGuard('google'))
+    @ApiOperation({ summary: 'Initiate Google OAuth flow' })
+    @ApiResponse({ status: 302, description: 'Redirects to Google for authentication' })
     async googleAuth(@Req() req) { }
 
 
 
     @Get('google/redirect')
     @UseGuards(AuthGuard('google'))
+    @ApiOperation({ summary: 'Google OAuth callback' })
+    @ApiQuery({
+        name: 'userType',
+        description: '[QUERY] Optional user type (normal_user or seller)',
+        enum: UserRole,
+        required: false
+    })
+    @ApiResponse({ status: 302, description: 'Redirects to home page with auth cookie' })
+    @ApiResponse({ status: 400, description: 'Invalid user type' })
     async googleAuthRedirect(@Req() req, @Res() res: Response, @Query('userType') userType?: string) {
         try {
 
@@ -107,6 +154,9 @@ export class AuthController {
 
 
     @Post('logout')
+    @ApiCookieAuth()
+    @ApiOperation({ summary: 'Log out current user' })
+    @ApiResponse({ status: 200, description: 'Logout successful' })
     logout(@Res() res: Response) {
         try {
             res.clearCookie('access_token');
@@ -127,6 +177,20 @@ export class AuthController {
 
     @Post('password/code/request')
     @Throttle({ default: { ttl: minutes(1440), limit: 6 } })
+    @ApiOperation({ summary: 'Request password reset OTP' })
+    @ApiBody({
+        type: EmailDto,
+        description: '[BODY] Email address for password reset',
+        examples: {
+            basic: {
+                value: {
+                    email: 'user@example.com'
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 200, description: 'OTP sent successfully' })
+    @ApiResponse({ status: 404, description: 'Email not found' })
     async requestPasswordReset(@Body() emailDto: EmailDto) {
         try {
             await this.authService.requestOtpCode(emailDto.email);
@@ -146,6 +210,21 @@ export class AuthController {
 
     @Post('password/code/validate')
     @Throttle({ default: { ttl: minutes(60), limit: 10 } })
+    @ApiOperation({ summary: 'Validate password reset OTP' })
+    @ApiBody({
+        type: OtpDto,
+        description: '[BODY] OTP validation data',
+        examples: {
+            basic: {
+                value: {
+                    email: 'user@example.com',
+                    code: '123456'
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 200, description: 'OTP validated successfully' })
+    @ApiResponse({ status: 409, description: 'Invalid OTP code' })
     async validateOtp(@Body() validateOtpDto: OtpDto) {
         const isValid = await this.otpService.getOtpCode(
             validateOtpDto.email,
@@ -168,6 +247,22 @@ export class AuthController {
 
     @Post('password/reset')
     @Throttle({ default: { ttl: minutes(1440), limit: 4 } })
+    @ApiOperation({ summary: 'Reset user password' })
+    @ApiBody({
+        type: ForgetPasswordDto,
+        description: '[BODY] New password details',
+        examples: {
+            basic: {
+                value: {
+                    email: 'user@example.com',
+                    password: 'NewSecurePass123!',
+                    confirmPassword: 'NewSecurePass123!'
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 200, description: 'Password updated successfully' })
+    @ApiResponse({ status: 400, description: 'Passwords do not match' })
     async resetPassword(@Body() forgotPasswordDto: ForgetPasswordDto) {
         try {
             const { email, password } = forgotPasswordDto;
@@ -188,6 +283,19 @@ export class AuthController {
 
     @Post('country')
     @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Set user country' })
+    @ApiBody({
+        type: CountryDto,
+        description: '[BODY] Country selection just [ syria , norway ] ',
+        examples: {
+            basic: {
+                value: {
+                    country: CountryEnum.SYRIA
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 200, description: 'Country updated successfully' })
     async selectCountry(
         @UserDecorator('_id') userId: string,
         @Body() countryDto: CountryDto,

@@ -199,7 +199,7 @@ export class ProductService {
         }
     }
 
-    async getProductById(productId: string, userCountry: string): Promise<Product> {
+    async getProductById(productId: string, userCountry?: string): Promise<Product> {
         try {
 
             const cacheKey = `product:${productId}:country:${userCountry}`;

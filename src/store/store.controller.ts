@@ -17,6 +17,7 @@ import { UserDecorator } from '../common/decorators/userId.decorator'
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager'
 import { GetStoresByCountryDto } from './dto/get-stores-by-country.dto';
+import { ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 
 @Controller('stores')
 @UseGuards(JwtAuthGuard)
@@ -28,6 +29,27 @@ export class StoreController {
     @Post('create')
     @Throttle({ default: { ttl: minutes(60), limit: 8 } })
     @UseInterceptors(FileInterceptor('image', imageStoreOptions))
+    @ApiOperation({
+        summary: 'Create a new store',
+        description: 'Create a new store (only for sellers)'
+    })
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        description: '[BODY] Store data with optional image',
+        type: CreateStoreDto
+    })
+    @ApiResponse({
+        status: 201,
+        description: 'Store created successfully'
+    })
+    @ApiResponse({
+        status: 403,
+        description: 'Forbidden - Only sellers can create stores'
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid store data'
+    })
     async createStore(@Body() storeDto: CreateStoreDto, @UserDecorator() user: { _id: string, role: string }, @UploadedFile() image?: Express.Multer.File) {
         if (user.role !== 'seller') {
             throw new ForbiddenException('Only sellers can create stores');
@@ -47,135 +69,198 @@ export class StoreController {
 
 
 
-    @Patch(':storeId/update')
-    @Throttle({ default: { ttl: minutes(60), limit: 8 } })
-    @UseInterceptors(FileInterceptor('image', imageStoreOptions))
-    async updateStore(@Param('storeId') storeId: string, @Body() updateStoreDto: UpdateStoreDto, @UserDecorator() user: { _id: string, role: string }, @UploadedFile() image?: Express.Multer.File) {
-
-        if (user.role !== 'seller') {
-            throw new ForbiddenException('Only sellers can create stores');
-        }
-        const ownerId = user._id
-
-        let imagePath: string | undefined;
-        if (image) {
-            imagePath = await this.imagesService.processAndSaveSingleImage(image);
-        }
-        return this.storeService.updateStore(storeId, updateStoreDto, ownerId, imagePath)
-    }
 
 
-    @Delete(':storeId/delete')
-    async deleteStore(@Param('storeId') storeId: string, @UserDecorator() user: { _id: string, role: string }) {
 
-        // 1. Authorization checks
-        this.validateUserIsSeller(user.role);
-        await this.validateUserOwnsStore(storeId, user._id);
-        const ownerId = user._id
-        await this.storeService.deleteStore(storeId, ownerId, false);
-    }
+    // @Patch(':storeId/update')
+    // @Throttle({ default: { ttl: minutes(60), limit: 8 } })
+    // @UseInterceptors(FileInterceptor('image', imageStoreOptions))
+    // async updateStore(@Param('storeId') storeId: string, @Body() updateStoreDto: UpdateStoreDto, @UserDecorator() user: { _id: string, role: string }, @UploadedFile() image?: Express.Multer.File) {
+
+    //     if (user.role !== 'seller') {
+    //         throw new ForbiddenException('Only sellers can create stores');
+    //     }
+    //     const ownerId = user._id
+
+    //     let imagePath: string | undefined;
+    //     if (image) {
+    //         imagePath = await this.imagesService.processAndSaveSingleImage(image);
+    //     }
+    //     return this.storeService.updateStore(storeId, updateStoreDto, ownerId, imagePath)
+    // }
+
+
+    // @Delete(':storeId/delete')
+    // async deleteStore(@Param('storeId') storeId: string, @UserDecorator() user: { _id: string, role: string }) {
+
+    //     // 1. Authorization checks
+    //     this.validateUserIsSeller(user.role);
+    //     await this.validateUserOwnsStore(storeId, user._id);
+    //     const ownerId = user._id
+    //     await this.storeService.deleteStore(storeId, ownerId, false);
+    // }
 
     @Get('/all')
     async getAllStore(@Query() getStoreByCountryQuery: GetStoresByCountryDto, @UserDecorator('country') userCountry: string) {
         return this.storeService.getAllStoresByCountry(getStoreByCountryQuery, userCountry)
     }
 
-    @Post(':storeId/products')
-    @UseInterceptors(FilesInterceptor('images', 4, imageStoreOptions))
-    async addNewProduct(
-        @Param('storeId') storeId: string,
-        @UploadedFiles() images: Express.Multer.File[],
-        @Body() newProductDto: AddNewProductDto,
-        @UserDecorator() user: { _id: string, role: string }
-    ) {
 
-        // 1. Authorization checks
-        this.validateUserIsSeller(user.role);
-        await this.validateUserOwnsStore(storeId, user._id.toString());
+    // @Post(':storeId/products')
+    // @UseInterceptors(FilesInterceptor('images', 4, imageStoreOptions))
+    // async addNewProduct(
+    //     @Param('storeId') storeId: string,
+    //     @UploadedFiles() images: Express.Multer.File[],
+    //     @Body() newProductDto: AddNewProductDto,
+    //     @UserDecorator() user: { _id: string, role: string }
+    // ) {
 
-        // 2. Input validation
-        this.validateRequiredFields(storeId, images);
+    //     // 1. Authorization checks
+    //     this.validateUserIsSeller(user.role);
+    //     await this.validateUserOwnsStore(storeId, user._id.toString());
 
-        try {
-            // 3. Business logic
-            const storeExists = await this.storeService.getStoreById(storeId);
-            if (!storeExists) throw new NotFoundException('Store not found.');
+    //     // 2. Input validation
+    //     this.validateRequiredFields(storeId, images);
 
-            const imagePaths = await this.imagesService.processAndSaveImages(images, storeId);
-            const productData = { ...newProductDto, images: imagePaths, store: storeId };
+    //     try {
+    //         // 3. Business logic
+    //         const storeExists = await this.storeService.getStoreById(storeId);
+    //         if (!storeExists) throw new NotFoundException('Store not found.');
 
-            return await this.productService.createProduct(productData);
-        } catch (error) {
-            images?.forEach(file => this.deleteFile(file));
-            if (error?.code === 'LIMIT_FILE_SIZE') {
-                throw new PayloadTooLargeException('File too large (max 5MB)');
-            }
-            throw new BadRequestException(error?.message || 'Failed to add product');
-        }
-    }
+    //         const imagePaths = await this.imagesService.processAndSaveImages(images, storeId);
+    //         const productData = { ...newProductDto, images: imagePaths, store: storeId };
 
-
-
-
-    @UseInterceptors(FilesInterceptor('images', 4, imageStoreOptions))
-    @Patch(':storeId/products/:productId')
-    async updateProduct(
-        @Param('productId') productId: string,
-        @Param('storeId') storeId: string,
-        @Body() updateProductDto: UpdateProductDto,
-        @UploadedFiles() images: Express.Multer.File[],
-        @UserDecorator() user: { _id: string, role: string }
-    ) {
-        // 1. Authorization checks
-        this.validateUserIsSeller(user.role);
-        await this.validateUserOwnsStore(storeId, user._id);
-
-        // 2. Input validation
-        this.validateRequiredFields(storeId, images);
-        try {
-            const storeExists = await this.storeService.getStoreById(storeId);
-            if (!storeExists) throw new NotFoundException('Store not found.');
-            const imagePaths = await this.imagesService.processAndSaveImages(images, storeId);
-
-            // Clear relevant caches
-            await this.cacheManager.del(`product:${productId}:*`);
-            await this.cacheManager.del('new_products:*');
-            await this.cacheManager.del('products:filter:*');
-
-            return await this.productService.updateProduct(updateProductDto, imagePaths, productId);
-        } catch (error) {
-            throw new BadRequestException(error?.message || 'Failed to update product');
-        }
-    }
+    //         return await this.productService.createProduct(productData);
+    //     } catch (error) {
+    //         images?.forEach(file => this.deleteFile(file));
+    //         if (error?.code === 'LIMIT_FILE_SIZE') {
+    //             throw new PayloadTooLargeException('File too large (max 5MB)');
+    //         }
+    //         throw new BadRequestException(error?.message || 'Failed to add product');
+    //     }
+    // }
 
 
 
 
-    @Delete(':storeId/products/:productId')
-    async deleteProduct(
-        @Param('productId') productId: string,
-        @Param('storeId') storeId: string,
-        @UserDecorator() user: { _id: string, role: string }
-    ) {
-        // 1. Authorization checks
-        this.validateUserIsSeller(user.role);
-        await this.validateUserOwnsStore(storeId, user._id);
-        try {
-            return await this.productService.deleteProduct(productId)
-        } catch (error) {
-            throw new BadRequestException(error?.message || 'Failed to Delete product');
-        }
-    }
+    // @UseInterceptors(FilesInterceptor('images', 4, imageStoreOptions))
+    // @Patch(':storeId/products/:productId')
+    // async updateProduct(
+    //     @Param('productId') productId: string,
+    //     @Param('storeId') storeId: string,
+    //     @Body() updateProductDto: UpdateProductDto,
+    //     @UploadedFiles() images: Express.Multer.File[],
+    //     @UserDecorator() user: { _id: string, role: string }
+    // ) {
+    //     // 1. Authorization checks
+    //     this.validateUserIsSeller(user.role);
+    //     await this.validateUserOwnsStore(storeId, user._id);
+
+    //     // 2. Input validation
+    //     this.validateRequiredFields(storeId, images);
+    //     try {
+    //         const storeExists = await this.storeService.getStoreById(storeId);
+    //         if (!storeExists) throw new NotFoundException('Store not found.');
+    //         const imagePaths = await this.imagesService.processAndSaveImages(images, storeId);
+
+    //         // Clear relevant caches
+    //         await this.cacheManager.del(`product:${productId}:*`);
+    //         await this.cacheManager.del('new_products:*');
+    //         await this.cacheManager.del('products:filter:*');
+
+    //         return await this.productService.updateProduct(updateProductDto, imagePaths, productId);
+    //     } catch (error) {
+    //         throw new BadRequestException(error?.message || 'Failed to update product');
+    //     }
+    // }
+
+
+
+
+    // @Delete(':storeId/products/:productId')
+    // async deleteProduct(
+    //     @Param('productId') productId: string,
+    //     @Param('storeId') storeId: string,
+    //     @UserDecorator() user: { _id: string, role: string }
+    // ) {
+    //     // 1. Authorization checks
+    //     this.validateUserIsSeller(user.role);
+    //     await this.validateUserOwnsStore(storeId, user._id);
+    //     try {
+    //         return await this.productService.deleteProduct(productId)
+    //     } catch (error) {
+    //         throw new BadRequestException(error?.message || 'Failed to Delete product');
+    //     }
+    // }
 
 
 
     @Get(':storeId/products')
+    @ApiOperation({
+        summary: 'Get store products',
+        description: 'Get paginated list of products in a store'
+    })
+    @ApiParam({
+        name: 'storeId',
+        description: '[PARAM] Store ID (MongoDB ObjectId)',
+        type: String,
+        example: '507f1f77bcf86cd799439011'
+    })
+    @ApiQuery({
+        name: 'page',
+        description: '[QUERY] Page number (default: 1)',
+        type: Number,
+        required: false,
+        example: 1
+    })
+    @ApiQuery({
+        name: 'limit',
+        description: '[QUERY] Items per page (default: 10)',
+        type: Number,
+        required: false,
+        example: 10
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns paginated products'
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Store not found'
+    })
     async getAllProductsByStore(@UserDecorator('country') userCountry: string, @Param('storeId') storeId: string, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
         return await this.productService.getProductsByStoreId(storeId, page, limit, userCountry)
     }
 
 
+
+
+
     @Get(':storeId/products/:productId')
+    @ApiOperation({
+        summary: 'Get product details',
+        description: 'Get detailed information about a product'
+    })
+    @ApiParam({
+        name: 'storeId',
+        description: '[PARAM] Store ID (MongoDB ObjectId)',
+        type: String,
+        example: '507f1f77bcf86cd799439011'
+    })
+    @ApiParam({
+        name: 'productId',
+        description: '[PARAM] Product ID (MongoDB ObjectId)',
+        type: String,
+        example: '507f1f77bcf86cd799439012'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns product details'
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Product not found'
+    })
     async getOneProduct(@Param('productId') productId: string, @UserDecorator('country') userCountry: string) {
         return await this.productService.getProductById(productId, userCountry)
     }
