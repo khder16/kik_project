@@ -18,14 +18,15 @@ export class ProductController {
 
 
 
-    @Get(':productId')
-    async findProductById(@Param('productId') productId: string, @UserDecorator('country') userCountry: CountryEnum) {
-        return await this.productService.getProductById(productId.toString(), userCountry)
-    }
-
     @Get('search')
     async searchProduct(@Query() query: SearchDto, @UserDecorator('country') userCountry: CountryEnum) {
         return await this.productService.searchProducts(query, userCountry)
+    }
+
+
+    @Get('newArrival')
+    async getNewProducts(@UserDecorator('country') userCountry: string) {
+        return await this.productService.findNewArrivals(userCountry)
     }
 
     @Get('')
@@ -36,6 +37,12 @@ export class ProductController {
         return await this.productService.filteredProducts(filterDto, userCountry)
     }
 
+
+
+    @Get(':productId')
+    async findProductById(@Param('productId') productId: string, @UserDecorator('country') userCountry: CountryEnum) {
+        return await this.productService.getProductById(productId.toString(), userCountry)
+    }
 
 
     @Post(':productId/reviews')
@@ -60,9 +67,5 @@ export class ProductController {
         return await this.reviewService.deleteReview(reviewId, productId, userId)
     }
 
-    @Get('newArrival')
-    async getNewProducts(@UserDecorator('country') userCountry: string) {
-        return await this.productService.findNewArrivals(userCountry)
-    }
 }
 

@@ -10,7 +10,7 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/rols.decorator';
 import { UserRole } from 'src/user/schemas/user.schema';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { ProductDto } from 'src/product/dto/product.dto';
+import { AddNewProductDto } from 'src/product/dto/add-new-product.dto';
 import { imageStoreOptions } from 'src/config/multer-images-Upload';
 import { unlink } from 'fs/promises';
 import { ImageProcessingService } from 'src/product/image-process.service';
@@ -65,7 +65,7 @@ export class SellerController {
     async addNewProduct(
         @Param('storeId') storeId: string,
         @UploadedFiles() images: Express.Multer.File[],
-        @Body() newProductDto: ProductDto,
+        @Body() newProductDto: AddNewProductDto,
         @UserDecorator() user: { _id: string, role: string }
     ) {
 
@@ -78,10 +78,8 @@ export class SellerController {
             // 3. Business logic
             const storeExists = await this.storeService.getStoreById(storeId);
             if (!storeExists) throw new NotFoundException('Store not found.');
-
             const imagePaths = await this.imagesService.processAndSaveImages(images, storeId);
-            const productData = { ...newProductDto, images: imagePaths, store: storeId };
-
+            const productData = { ...newProductDto, images: imagePaths, store: storeId, country: storeExists.country };
             return await this.productService.createProduct(productData);
         } catch (error) {
             images?.forEach(file => this.deleteFile(file));

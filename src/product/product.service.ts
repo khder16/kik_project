@@ -2,7 +2,7 @@ import { BadRequestException, HttpException, Inject, Injectable, InternalServerE
 import { InjectModel } from '@nestjs/mongoose';
 import { Product } from './schemas/product.schema';
 import { Model, Types } from 'mongoose';
-import { ProductDto } from './dto/product.dto';
+import { AddNewProductDto } from './dto/add-new-product.dto';
 import { unlink, access } from 'fs/promises';
 import { Cache } from 'cache-manager'
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -23,7 +23,7 @@ export class ProductService {
 
 
 
-    async createProduct(newProduct: ProductDto): Promise<Product> {
+    async createProduct(newProduct: AddNewProductDto): Promise<Product> {
         try {
             const product = new this.productModel(newProduct)
             return await product.save()
@@ -286,7 +286,7 @@ export class ProductService {
             // Prevent regex injection
             const sanitizedSearch = this.escapeRegex(decodedSearch);
             const cacheKey = `search:${userCountry}:${sanitizedSearch}:${page}:${limit}`;
-            const cached = await this.cacheManager.get<string>(cacheKey);
+            const cached = await this.cacheManager.get<Product[]>(cacheKey);
 
             if (cached) {
                 return cached;
@@ -313,7 +313,7 @@ export class ProductService {
                 .find(query)
                 .populate({
                     path: 'store',
-                    select: '_id name country'
+                    select: '_id name country',
                 })
                 .collation(
                     collationSettings[userCountry] || {}

@@ -12,7 +12,7 @@ export class SearchDto {
   @IsOptional()
   @IsPositive()
   @Type(() => Number)
-  limit?: number= 10;;
+  limit?: number = 10;
 
   @IsOptional()
   @Min(1)

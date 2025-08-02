@@ -8,7 +8,7 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { imageStoreOptions } from 'src/config/multer-images-Upload';
 import { ImageProcessingService } from 'src/product/image-process.service';
 import { ProductService } from 'src/product/product.service';
-import { ProductDto } from 'src/product/dto/product.dto';
+import { AddNewProductDto } from 'src/product/dto/add-new-product.dto';
 import { unlink } from 'fs/promises';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { minutes, Throttle } from '@nestjs/throttler';
@@ -85,7 +85,7 @@ export class StoreController {
     async addNewProduct(
         @Param('storeId') storeId: string,
         @UploadedFiles() images: Express.Multer.File[],
-        @Body() newProductDto: ProductDto,
+        @Body() newProductDto: AddNewProductDto,
         @UserDecorator() user: { _id: string, role: string }
     ) {
 
