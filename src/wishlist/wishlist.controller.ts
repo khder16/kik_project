@@ -14,7 +14,7 @@ export class WishlistController {
 
 
 
-    @Post('toggle/:productId')
+    @Post(':productId')
     async toggleWishlist(
         @Param('productId') productId: string,
         @UserDecorator('_id') userId: string
@@ -22,12 +22,12 @@ export class WishlistController {
         return this.wishlistService.toggleWishlist(productId, userId);
     }
 
-    @Post(':productId')
-    async addProductToWishlist(@Param('productId') productId: string, @UserDecorator('_id') userId: string) {
-        return await this.wishlistService.addToWishlist(productId, userId)
-    }
+    // @Post(':productId')
+    // async addProductToWishlist(@Param('productId') productId: string, @UserDecorator('_id') userId: string) {
+    //     return await this.wishlistService.addToWishlist(productId, userId)
+    // }
 
-    @Get('get-wishlist')
+    @Get('')
     async getUserWishlistList(@UserDecorator('_id') userId: string, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
         return await this.wishlistService.getUserWishlist(userId, page, limit)
     }

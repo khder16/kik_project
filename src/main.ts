@@ -10,12 +10,27 @@ import { WinstonLogger } from './common/logger/winston.logger';
 import { doubleCsrf } from 'csrf-csrf';
 import { join } from 'path';
 import * as express from 'express'
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+
+
+
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: new WinstonLogger('AppBootstrap'),
   });
   const configService = app.get(ConfigService);
+
+
+
+  const config = new DocumentBuilder()
+    .setTitle('KiK E-Commerce')
+    .setDescription('The kik API description')
+    .addTag('kik')
+    .build();
+  const documentFactory = () => SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, documentFactory);
+
 
   // Static Folder For Images
   app.use('/public', express.static(join(process.cwd(), 'public')));

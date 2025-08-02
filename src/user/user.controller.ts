@@ -16,7 +16,7 @@ export class UserController {
 
     constructor(private userService: UserService) { }
 
-    @Get('user-email')
+    @Get('email')
     @Throttle({ userController: {} })
     async getUserByEmail(@Body() emailDto: EmailDto): Promise<User> {
         try {
@@ -26,13 +26,13 @@ export class UserController {
         }
     }
 
-    @Get('user-profile')
+    @Get('me')
     async getUserProfile(@UserDecorator('_id') userId: string) {
         return await this.userService.findById(userId)
     }
 
 
-    @Get('all-users')
+    @Get('all')
     async getAllUsers() {
         const users = await this.userService.findAll()
         return users;

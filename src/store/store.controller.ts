@@ -25,7 +25,7 @@ export class StoreController {
     constructor(private userService: UserService, private storeService: StoreService, private imagesService: ImageProcessingService, private productService: ProductService, @Inject(CACHE_MANAGER) private cacheManager: Cache) { }
 
 
-    @Post('create-store')
+    @Post('create')
     @Throttle({ default: { ttl: minutes(60), limit: 8 } })
     @UseInterceptors(FileInterceptor('image', imageStoreOptions))
     async createStore(@Body() storeDto: CreateStoreDto, @UserDecorator() user: { _id: string, role: string }, @UploadedFile() image?: Express.Multer.File) {
@@ -47,7 +47,7 @@ export class StoreController {
 
 
 
-    @Patch(':storeId/update-store')
+    @Patch(':storeId/update')
     @Throttle({ default: { ttl: minutes(60), limit: 8 } })
     @UseInterceptors(FileInterceptor('image', imageStoreOptions))
     async updateStore(@Param('storeId') storeId: string, @Body() updateStoreDto: UpdateStoreDto, @UserDecorator() user: { _id: string, role: string }, @UploadedFile() image?: Express.Multer.File) {
@@ -65,7 +65,7 @@ export class StoreController {
     }
 
 
-    @Delete(':storeId/delete-sotre')
+    @Delete(':storeId/delete')
     async deleteStore(@Param('storeId') storeId: string, @UserDecorator() user: { _id: string, role: string }) {
 
         // 1. Authorization checks
@@ -75,12 +75,12 @@ export class StoreController {
         await this.storeService.deleteStore(storeId, ownerId, false);
     }
 
-    @Get('/get-all-stores')
+    @Get('/all')
     async getAllStore(@Query() getStoreByCountryQuery: GetStoresByCountryDto, @UserDecorator('country') userCountry: string) {
         return this.storeService.getAllStoresByCountry(getStoreByCountryQuery, userCountry)
     }
 
-    @Post(':storeId/add-product')
+    @Post(':storeId/products')
     @UseInterceptors(FilesInterceptor('images', 4, imageStoreOptions))
     async addNewProduct(
         @Param('storeId') storeId: string,
@@ -118,9 +118,9 @@ export class StoreController {
 
 
     @UseInterceptors(FilesInterceptor('images', 4, imageStoreOptions))
-    @Patch(':storeId/update-product/:id')
+    @Patch(':storeId/products/:productId')
     async updateProduct(
-        @Param('id') id: string,
+        @Param('productId') productId: string,
         @Param('storeId') storeId: string,
         @Body() updateProductDto: UpdateProductDto,
         @UploadedFiles() images: Express.Multer.File[],
@@ -138,11 +138,11 @@ export class StoreController {
             const imagePaths = await this.imagesService.processAndSaveImages(images, storeId);
 
             // Clear relevant caches
-            await this.cacheManager.del(`product:${id}:*`);
+            await this.cacheManager.del(`product:${productId}:*`);
             await this.cacheManager.del('new_products:*');
             await this.cacheManager.del('products:filter:*');
 
-            return await this.productService.updateProduct(updateProductDto, imagePaths, id);
+            return await this.productService.updateProduct(updateProductDto, imagePaths, productId);
         } catch (error) {
             throw new BadRequestException(error?.message || 'Failed to update product');
         }
@@ -151,9 +151,9 @@ export class StoreController {
 
 
 
-    @Delete(':storeId/delete-product/:id')
+    @Delete(':storeId/products/:productId')
     async deleteProduct(
-        @Param('id') id: string,
+        @Param('productId') productId: string,
         @Param('storeId') storeId: string,
         @UserDecorator() user: { _id: string, role: string }
     ) {
@@ -161,7 +161,7 @@ export class StoreController {
         this.validateUserIsSeller(user.role);
         await this.validateUserOwnsStore(storeId, user._id);
         try {
-            return await this.productService.deleteProduct(id)
+            return await this.productService.deleteProduct(productId)
         } catch (error) {
             throw new BadRequestException(error?.message || 'Failed to Delete product');
         }
@@ -169,13 +169,13 @@ export class StoreController {
 
 
 
-    @Get(':storeId/get-all-products')
+    @Get(':storeId/products')
     async getAllProductsByStore(@UserDecorator('country') userCountry: string, @Param('storeId') storeId: string, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
         return await this.productService.getProductsByStoreId(storeId, page, limit, userCountry)
     }
 
 
-    @Get(':storeId/get-product/:productId')
+    @Get(':storeId/products/:productId')
     async getOneProduct(@Param('productId') productId: string, @UserDecorator('country') userCountry: string) {
         return await this.productService.getProductById(productId, userCountry)
     }

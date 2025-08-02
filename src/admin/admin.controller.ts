@@ -15,13 +15,13 @@ export class AdminController {
     constructor(private userService: UserService, private storeService: StoreService) { }
 
     @Roles(UserRole.SUPER_ADMIN)
-    @Get('admin-profile')
+    @Get('profile')
     async getAdminProfile(@UserDecorator('_id') adminId: string) {
         return await this.userService.findById(adminId)
     }
 
     @Roles(UserRole.SUPER_ADMIN)
-    @Get('all-sellers')
+    @Get('sellers')
     async getAllSellers(@Query('page') page: number = 1,
         @Query('limit') limit: number = 20) {
         return await this.userService.findAllSellers(page, limit)
@@ -30,7 +30,7 @@ export class AdminController {
 
 
     @Roles(UserRole.SUPER_ADMIN)
-    @Get('all-users')
+    @Get('users')
     async getAllUsers(@Query('page') page: number = 1,
         @Query('limit') limit: number = 20) {
         return await this.userService.findAllUsers(page, limit)
@@ -38,14 +38,14 @@ export class AdminController {
 
 
     @Roles(UserRole.SUPER_ADMIN)
-    @Get('all-stores')
+    @Get('stores')
     async getAllStoresByCountry(@Query() getStoreByCountryQuery: GetStoresByCountryDto) {
         return await this.storeService.getAllStoresByCountry(getStoreByCountryQuery, getStoreByCountryQuery.country)
     }
 
 
     @Roles(UserRole.SUPER_ADMIN)
-    @Delete(':storeId/delete-store')
+    @Delete('/stores/:storeId')
     async deleteStoreFromAdmin(@Param('storeId') storeId: string, @UserDecorator('_id') adminId: string) {
         await this.storeService.deleteStore(storeId, undefined, true);
     }

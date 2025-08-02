@@ -11,22 +11,22 @@ export class CartController {
 
     constructor(private cartService: CartService) { }
 
-    @Post('add-to-cart')
+    @Post('items')
     async addToCart(@UserDecorator('_id') userId: string, @Body() addToCartDto: AddToCartDto) {
         return await this.cartService.addToCart(userId, addToCartDto.productId, addToCartDto.quantity)
     }
 
-    @Get('get-cart-info')
+    @Get('cart')
     async getUserCart(@UserDecorator('_id') userId: string, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
         return await this.cartService.getUserCart(userId, page, limit)
     }
 
-    @Delete('item/:productId')
+    @Delete('items/:productId')
     async removeFromCart(@UserDecorator('_id') userId: string, @Param('productId') productId: string) {
         return this.cartService.removeFromCart(userId, productId)
     }
 
-    @Patch('item/:productId')
+    @Patch('items/:productId')
     async updateCartItem(@UserDecorator('_id') userId: string, @Param('productId') productId: string, @Body() updateItemDto: UpdateCartItemDto) {
         return this.cartService.updateCartItem(userId, productId, updateItemDto.quantity)
     }

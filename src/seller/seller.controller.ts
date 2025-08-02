@@ -24,19 +24,19 @@ export class SellerController {
     constructor(private sellerService: SellerService, private imagesService: ImageProcessingService, private userService: UserService, private productService: ProductService, private storeService: StoreService) { }
 
     @Roles(UserRole.SELLER)
-    @Get('seller-profile')
+    @Get('profile')
     async getSellerProfile(@UserDecorator('_id') sellerId: string) {
         return await this.userService.findSellerById(sellerId)
     }
 
     @Roles(UserRole.SELLER)
-    @Get('seller-store')
+    @Get('stores')
     async getSellerStore(@UserDecorator('_id') sellerId: string) {
         return await this.storeService.getStoresByOwnerId(sellerId)
     }
 
     @Roles(UserRole.SELLER)
-    @Get('seller-products')
+    @Get('products')
     async getAllSellerProducts(@UserDecorator('_id') sellerId: string, @Query('page') page: number = 1,
         @Query('limit') limit: number = 10,) {
 
@@ -46,13 +46,13 @@ export class SellerController {
     }
 
     @Roles(UserRole.SELLER)
-    @Patch('update-store/:storeId')
+    @Patch('stores/:storeId')
     async updateSellerStore(@UserDecorator('_id') sellerId: string, @Param('storeId') storeId: string, @Body() updateStoreData: UpdateStoreDto) {
         return await this.storeService.updateStore(storeId, updateStoreData, sellerId)
     }
 
     @Roles(UserRole.SELLER)
-    @Delete('delete-store/:storeId')
+    @Delete('stores/:storeId')
     async deleteSellerStore(@UserDecorator('_id') sellerId: string, @Param('storeId') storeId: string, @Body() updateStoreData: UpdateStoreDto) {
         return await this.storeService.deleteStore(storeId, sellerId)
     }

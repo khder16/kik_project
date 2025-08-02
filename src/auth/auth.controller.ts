@@ -125,7 +125,7 @@ export class AuthController {
 
 
 
-    @Post('password/request-code')
+    @Post('password/code/request')
     @Throttle({ default: { ttl: minutes(1440), limit: 6 } })
     async requestPasswordReset(@Body() emailDto: EmailDto) {
         try {
@@ -144,7 +144,7 @@ export class AuthController {
 
 
 
-    @Post('password/validate-code')
+    @Post('password/code/validate')
     @Throttle({ default: { ttl: minutes(60), limit: 10 } })
     async validateOtp(@Body() validateOtpDto: OtpDto) {
         const isValid = await this.otpService.getOtpCode(
@@ -166,7 +166,7 @@ export class AuthController {
     }
 
 
-    @Post('password/update-password')
+    @Post('password/reset')
     @Throttle({ default: { ttl: minutes(1440), limit: 4 } })
     async resetPassword(@Body() forgotPasswordDto: ForgetPasswordDto) {
         try {
@@ -186,7 +186,7 @@ export class AuthController {
 
 
 
-    @Post('select-country')
+    @Post('country')
     @UseGuards(JwtAuthGuard)
     async selectCountry(
         @UserDecorator('_id') userId: string,

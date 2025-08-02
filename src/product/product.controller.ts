@@ -18,7 +18,7 @@ export class ProductController {
 
 
 
-    @Get('get-product/:productId')
+    @Get(':productId')
     async findProductById(@Param('productId') productId: string, @UserDecorator('country') userCountry: CountryEnum) {
         return await this.productService.getProductById(productId.toString(), userCountry)
     }
@@ -28,7 +28,7 @@ export class ProductController {
         return await this.productService.searchProducts(query, userCountry)
     }
 
-    @Get('get-all-products')
+    @Get('')
     async filterProducts(
         @Query() filterDto: ProductFilterDto,
         @UserDecorator('country') userCountry: string
@@ -38,8 +38,7 @@ export class ProductController {
 
 
 
-
-    @Post(':productId/add-review')
+    @Post(':productId/reviews')
     async addReview(@Body() reviewDto: CreateReviewDto,
         @Param('productId') productId: string,
         @UserDecorator('_id') userId: string) {
@@ -47,21 +46,21 @@ export class ProductController {
     }
 
 
-    @Get(':productId/get-all-reviews')
+    @Get(':productId/reviews')
     async getReviewsForProduct(@Param('productId') productId: string, @Query('page') page: number,
         @Query('limit') limit: number) {
         return await this.reviewService.getAllReviewsForProduct(productId, page, limit)
     }
 
 
-    @Delete(':productId/:reviewId/delete-review')
+    @Delete(':productId/reviews/:reviewId')
     async deleteReview(@Param('reviewId') reviewId: string,
         @Param('productId') productId: string,
         @UserDecorator('_id') userId: string) {
         return await this.reviewService.deleteReview(reviewId, productId, userId)
     }
 
-    @Get('new-products')
+    @Get('newArrival')
     async getNewProducts(@UserDecorator('country') userCountry: string) {
         return await this.productService.findNewArrivals(userCountry)
     }

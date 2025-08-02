@@ -34,12 +34,12 @@ export class ProductService {
     }
 
 
-    async updateProduct(newProduct: UpdateProductDto, images: string[], id: string): Promise<Product> {
+    async updateProduct(newProduct: UpdateProductDto, images: string[], productId: string): Promise<Product> {
         const session = await this.productModel.startSession();
         session.startTransaction();
         try {
             // 1. Find existing product
-            const existingProduct = await this.productModel.findById(id).session(session);
+            const existingProduct = await this.productModel.findById(productId).session(session);
             if (!existingProduct) {
                 throw new NotFoundException('Product not found.');
             }
@@ -54,7 +54,7 @@ export class ProductService {
 
             // 3. Update product with new data
             const updatedProduct = await this.productModel.findByIdAndUpdate(
-                id,
+                productId,
                 { ...newProduct, images },
                 { new: true, session }
             );
