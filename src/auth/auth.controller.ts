@@ -91,10 +91,8 @@ export class AuthController {
                 statusCode: HttpStatus.OK,
                 message: 'Login successful',
                 user: {
-                    email: result.user.email,
                     firstName: result.user.firstName,
                     lastName: result.user.lastName,
-                    role: result.user.role
                 }
             };
         } catch (error) {
@@ -104,6 +102,8 @@ export class AuthController {
             throw new InternalServerErrorException('An unexpected error occurred during login.');
         }
     }
+
+
 
     @Get('google')
     @UseGuards(AuthGuard('google'))
@@ -152,7 +152,7 @@ export class AuthController {
         }
     }
 
-
+    @UseGuards(JwtAuthGuard)
     @Post('logout')
     @ApiCookieAuth()
     @ApiOperation({ summary: 'Log out current user' })
@@ -245,6 +245,7 @@ export class AuthController {
     }
 
 
+    @UseGuards(JwtAuthGuard)
     @Post('password/reset')
     @Throttle({ default: { ttl: minutes(1440), limit: 4 } })
     @ApiOperation({ summary: 'Reset user password' })
@@ -278,7 +279,6 @@ export class AuthController {
             throw new InternalServerErrorException('An unexpected error occurred during password update.');
         }
     }
-
 
 
     @Post('country')

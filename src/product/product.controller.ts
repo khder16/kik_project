@@ -8,17 +8,19 @@ import { UserDecorator } from 'src/common/decorators/userId.decorator';
 import { CountryEnum } from 'src/auth/dto/signup.dto';
 import { SearchDto } from './dto/search.dto';
 import { ProductFilterDto } from './dto/filter-serch-query.dto';
+import { OptionalJwtAuthGuard } from 'src/common/guards/optionalAuthentication.guard';
 
 @ApiTags('Products')
 @ApiBearerAuth()
-@Controller('products')
-    @UseGuards(JwtAuthGuard)
+    @Controller('products')
 export class ProductController {
     constructor(
         private productService: ProductService,
         private reviewService: ReviewsService
     ) { }
 
+
+    @UseGuards(OptionalJwtAuthGuard)
     @Get('search')
     @ApiOperation({
         summary: 'Search products',
@@ -55,11 +57,13 @@ export class ProductController {
     })
     async searchProduct(
         @Query() query: SearchDto,
-        @UserDecorator('country') userCountry: CountryEnum
     ) {
-        return await this.productService.searchProducts(query, userCountry);
+        return await this.productService.searchProducts(query);
     }
 
+
+
+    @UseGuards(OptionalJwtAuthGuard)
     @Get('newArrival')
     @ApiOperation({
         summary: 'Get new arrivals',
@@ -69,12 +73,15 @@ export class ProductController {
         status: 200,
         description: 'Returns list of new arrival products'
     })
-    async getNewProducts(@UserDecorator('country') userCountry: string) {
-        return await this.productService.findNewArrivals(userCountry);
+    async getNewProducts() {
+        return await this.productService.findNewArrivals();
     }
 
 
 
+
+
+    @UseGuards(OptionalJwtAuthGuard)
     @Get('')
     @ApiOperation({
         summary: 'Filter products',
@@ -86,6 +93,13 @@ export class ProductController {
         type: String,
         required: false,
         example: 'electronics'
+    })
+    @ApiQuery({
+        name: 'country',
+        description: '[QUERY] Product country filter',
+        type: String,
+        required: false,
+        example: 'syria'
     })
     @ApiQuery({
         name: 'minPrice',
@@ -121,14 +135,13 @@ export class ProductController {
     })
     async filterProducts(
         @Query() filterDto: ProductFilterDto,
-        @UserDecorator('country') userCountry: string
     ) {
-        return await this.productService.filteredProducts(filterDto, userCountry);
+        return await this.productService.filteredProducts(filterDto);
     }
 
 
 
-
+    @UseGuards(OptionalJwtAuthGuard)
     @Get(':productId')
     @ApiOperation({
         summary: 'Get product details',
@@ -150,15 +163,14 @@ export class ProductController {
     })
     async findProductById(
         @Param('productId') productId: string,
-        @UserDecorator('country') userCountry: CountryEnum
     ) {
-        return await this.productService.getProductById(productId.toString(), userCountry);
+        return await this.productService.getProductById(productId.toString());
     }
 
 
 
 
-
+    @UseGuards(JwtAuthGuard)
     @Post(':productId/reviews')
     @ApiOperation({
         summary: 'Add product review',
@@ -205,6 +217,7 @@ export class ProductController {
 
 
 
+    @UseGuards(OptionalJwtAuthGuard)
     @Get(':productId/reviews')
     @ApiOperation({
         summary: 'Get product reviews',
@@ -246,6 +259,8 @@ export class ProductController {
         return await this.reviewService.getAllReviewsForProduct(productId, page, limit);
     }
 
+
+    @UseGuards(JwtAuthGuard)
     @Delete(':productId/reviews/:reviewId')
     @ApiOperation({
         summary: 'Delete review',

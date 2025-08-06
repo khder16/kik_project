@@ -133,7 +133,8 @@ export class AuthService {
                 phone: user.phoneNumber,
                 role: user.role,
                 country: user.country
-            };
+            }
+
 
             const userInfo = {
                 id: user._id,

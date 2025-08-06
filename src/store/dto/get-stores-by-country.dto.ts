@@ -4,7 +4,7 @@ import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Min } f
 import { CategoryEnum } from "src/common/enum/category.enum";
 import { CountryEnum } from "src/common/enum/country.enum";
 
-export class GetStoresByCountryDto {
+export class GetStoresFilterDto {
     @ApiPropertyOptional({
         description: 'Page number for pagination (default: 1)',
         example: 1,

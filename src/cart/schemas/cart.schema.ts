@@ -16,14 +16,18 @@ export class Cart {
         product: { type: Types.ObjectId, ref: 'Product', required: true },
         price: { type: Number, required: true, min: 0 },
         quantity: { type: Number, required: true, min: 1 },
+        store: { type: Types.ObjectId, ref: 'Store', required: true }
       }],
     default: []
   })
   items: {
     product: Types.ObjectId,
     price: number
-    quantity: number
+      quantity: number,
+      store: Types.ObjectId
   }[];
+
+
 
   @Prop({ type: Number, default: 0, min: 0 })
   totalPrice: number;

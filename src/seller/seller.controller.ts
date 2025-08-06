@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Inject, NotFoundException, Param, Patch, PayloadTooLargeException, Post, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, HttpException, Inject, NotFoundException, Param, Patch, PayloadTooLargeException, Post, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/common/guards/authentication.guard';
 import { SellerService } from './seller.service';
 import { ProductService } from 'src/product/product.service';
@@ -213,11 +213,12 @@ export class SellerController {
         @Body() newProductDto: AddNewProductDto,
         @UserDecorator() user: { _id: string, role: string }
     ) {
-
-        this.validateUserOwnsStore(storeId, user._id.toString());
-
         // 2. Input validation
         this.validateRequiredFields(storeId, images);
+
+
+        await this.validateUserOwnsStore(storeId, user._id.toString());
+
 
         try {
             // 3. Business logic
@@ -231,18 +232,13 @@ export class SellerController {
             if (error?.code === 'LIMIT_FILE_SIZE') {
                 throw new PayloadTooLargeException('File too large (max 5MB)');
             }
-            throw new BadRequestException(error?.message || 'Failed to add product');
+            if (error instanceof HttpException) {
+                throw error;
+            }
+            throw new BadRequestException('Failed to add product');
         }
     }
-    validateRequiredFields(storeId: string, images: Express.Multer.File[]) {
-        throw new Error('Method not implemented.');
-    }
-    validateUserOwnsStore(storeId: string, arg1: string) {
-        throw new Error('Method not implemented.');
-    }
-    validateUserIsSeller(role: string) {
-        throw new Error('Method not implemented.');
-    }
+
 
     async deleteFile(file: Express.Multer.File) {
         try {
@@ -409,6 +405,38 @@ export class SellerController {
             return await this.productService.deleteProduct(productId)
         } catch (error) {
             throw new BadRequestException(error?.message || 'Failed to Delete product');
+        }
+    }
+
+
+
+
+
+
+    // Helper methods for better organization
+    private validateUserIsSeller(role: string): void {
+        if (role !== 'seller' && role !== 'super_admin') {
+            throw new ForbiddenException('Only sellers can create stores');
+        }
+    }
+
+    private async validateUserOwnsStore(storeId: string, ownerId: string): Promise<void> {
+        const storeExists = await this.storeService.getStoreById(storeId);
+        if (storeExists.owner._id.toString() !== ownerId) {
+            throw new ForbiddenException('Only owner can add products');
+        }
+    }
+
+
+    private validateRequiredFields(storeId: string, images: Express.Multer.File[]): void {
+        if (!storeId) throw new BadRequestException('Store ID is required.');
+        if (!images?.length) throw new BadRequestException('At least one product image is required.');
+    }
+
+    private validateStoreLimit = async (ownerId: string) => {
+        const stores = await this.storeService.getStoresByOwnerId(ownerId)
+        if (stores.length >= 1) {
+            throw new ConflictException('User cannot have more than 1 store.');
         }
     }
 

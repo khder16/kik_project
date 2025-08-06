@@ -6,7 +6,7 @@ import { Roles } from 'src/common/decorators/rols.decorator';
 import { UserDecorator } from 'src/common/decorators/userId.decorator';
 import { JwtAuthGuard } from 'src/common/guards/authentication.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { GetStoresByCountryDto } from 'src/store/dto/get-stores-by-country.dto';
+import { GetStoresFilterDto } from 'src/store/dto/get-stores-by-country.dto';
 import { StoreService } from 'src/store/store.service';
 import { User, UserRole } from 'src/user/schemas/user.schema';
 import { UserService } from 'src/user/user.service';
@@ -124,8 +124,8 @@ export class AdminController {
         name: 'country',
         description: '[QUERY] Country filter',
         type: String,
-        required: true,
-        example: 'USA'
+        required: false,
+        example: 'norway'
     })
     @ApiQuery({
         name: 'page',
@@ -141,6 +141,13 @@ export class AdminController {
         required: false,
         example: 10
     })
+    @ApiQuery({
+        name: 'category',
+        description: '[QUERY] Category filter',
+        type: String,
+        required: false,
+        example: 'syria'
+    })
     @ApiResponse({
         status: 200,
         description: 'Returns paginated list of stores'
@@ -150,11 +157,10 @@ export class AdminController {
         description: 'Forbidden - User is not a super admin'
     })
     async getAllStoresByCountry(
-        @Query() getStoreByCountryQuery: GetStoresByCountryDto
+        @Query() getStoreByCountryQuery: GetStoresFilterDto
     ) {
-        return await this.storeService.getAllStoresByCountry(
-            getStoreByCountryQuery,
-            getStoreByCountryQuery.country
+        return await this.storeService.getAllStoresByFilters(
+            getStoreByCountryQuery
         );
     }
 

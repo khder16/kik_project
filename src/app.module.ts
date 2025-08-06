@@ -27,6 +27,8 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SellerModule } from './seller/seller.module';
 import { AdminModule } from './admin/admin.module';
+// import { PaymentService } from './payment/payment.service';
+// import { PaymentModule } from './payment/payment.module';
 import * as redisStore from 'cache-manager-redis-store';
 
 
@@ -112,7 +114,8 @@ import * as redisStore from 'cache-manager-redis-store';
     SystempagesModule,
     OtpModule,
     ReviewsModule,
-    AdminModule
+    AdminModule,
+    // PaymentModule
   ],
   controllers: [AppController, WishlistController, SystempagesController],
   providers: [AppService, SystempagesService, JwtService, ImageProcessingService,
@@ -121,6 +124,7 @@ import * as redisStore from 'cache-manager-redis-store';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    // PaymentService,
     // Register RolesGuard
     // {
     //   provide: APP_GUARD,

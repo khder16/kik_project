@@ -28,11 +28,14 @@ export class CartController {
     })
     @ApiResponse({ status: 201, description: 'Item added to cart' })
     @ApiResponse({ status: 404, description: 'Product not found' })
-    async addToCart(@UserDecorator('_id') userId: string, @Body() addToCartDto: AddToCartDto) {
-        return await this.cartService.addToCart(userId, addToCartDto.productId, addToCartDto.quantity)
+    async addToCart(@UserDecorator() userInfo: any, @Body() addToCartDto: AddToCartDto) {
+        return await this.cartService.addToCart(userInfo, addToCartDto.productId, addToCartDto.quantity)
     }
 
-    @Get('cart')
+
+
+
+    @Get('my-cart')
     @ApiOperation({ summary: 'Get user cart' })
     @ApiQuery({
         name: 'page',
@@ -54,6 +57,8 @@ export class CartController {
         return await this.cartService.getUserCart(userId, page, limit)
     }
 
+
+
     @Delete('items/:productId')
     @ApiParam({
         name: 'productId',
@@ -65,6 +70,10 @@ export class CartController {
     async removeFromCart(@UserDecorator('_id') userId: string, @Param('productId') productId: string) {
         return this.cartService.removeFromCart(userId, productId)
     }
+
+
+
+
 
     @Patch('items/:productId')
     @ApiOperation({ summary: 'Update cart item quantity' })
@@ -88,5 +97,6 @@ export class CartController {
     async updateCartItem(@UserDecorator('_id') userId: string, @Param('productId') productId: string, @Body() updateItemDto: UpdateCartItemDto) {
         return this.cartService.updateCartItem(userId, productId, updateItemDto.quantity)
     }
+
 
 }

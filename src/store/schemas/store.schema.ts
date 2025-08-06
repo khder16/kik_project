@@ -65,6 +65,19 @@ export class Store {
   image?: string;
 
 
+  @Prop({
+    type: String,
+    enum: ['paypal', 'stripe', 'bank'],
+    default: null
+  })
+  payoutMethod?: string;
+
+  @Prop({ type: String, select: false }) // PayPal email
+  paypalEmail?: string;
+
+  @Prop({ type: String, select: false }) // Stripe account ID
+  stripeAccountId?: string;
+
 }
 
 

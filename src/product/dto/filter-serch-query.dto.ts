@@ -1,6 +1,7 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString, Min, IsPositive } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNumber, IsOptional, IsString, Min, IsPositive, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CountryEnum } from '../schemas/product.schema';
 
 export class ProductFilterDto {
     @ApiPropertyOptional({
@@ -11,6 +12,19 @@ export class ProductFilterDto {
     @IsOptional()
     @IsString()
     category?: string;
+
+
+    @ApiProperty({
+        description: 'Country selection',
+        enum: CountryEnum,
+        example: CountryEnum.NORWAY,
+        required: true
+    })
+    @IsEnum(CountryEnum, {
+        message: `Country must be one of: ${Object.values(CountryEnum).join(', ')}`
+    })
+    @IsOptional()
+    country: CountryEnum;
 
     @ApiPropertyOptional({
         description: 'Minimum price filter (inclusive)',

@@ -18,25 +18,30 @@ export class CartService {
 
 
 
-    async addToCart(userId: string, productId: string, quantity: number) {
+    async addToCart(userInfo: any, productId: string, quantity: number) {
         const session = await this.cartModel.db.startSession();
         session.startTransaction();
 
         try {
 
-            let cart = await this.cartModel.findOne({ user: userId }).session(session).exec();
+            let cart = await this.cartModel.findOne({ user: userInfo._id }).session(session).exec();
 
             if (!cart) {
                 cart = new this.cartModel({
-                    user: userId,
+                    user: userInfo._id,
                     items: [],
                     totalPrice: 0,
                 });
             }
 
-            const product = await this.productModel.findById(productId)
+            const product = await this.productModel.findById(productId).populate({ path: 'store', select: '_id name email' })
             if (!product) {
                 throw new NotFoundException('Product with this ID not found')
+            }
+
+
+            if (userInfo.country !== product.country) {
+                throw new BadRequestException('This product is not available in your country');
             }
 
 
@@ -51,7 +56,8 @@ export class CartService {
                 cart.items.push({
                     product: product._id,
                     price: product.price,
-                    quantity
+                    quantity,
+                    store: product._id
                 })
             }
 

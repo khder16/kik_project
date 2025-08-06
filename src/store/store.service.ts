@@ -9,10 +9,7 @@ import { join } from 'path';
 import { Product } from 'src/product/schemas/product.schema';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import * as fs from 'fs'
-import { log } from 'console';
-import { CountryEnum } from 'src/common/enum/country.enum';
-import { GetStoresByCountryDto } from './dto/get-stores-by-country.dto';
+import { GetStoresFilterDto } from './dto/get-stores-by-country.dto';
 @Injectable()
 export class StoreService {
 
@@ -153,10 +150,13 @@ export class StoreService {
         }
     }
 
-    async getAllStoresByCountry(getStoreByCountryQuery: GetStoresByCountryDto, country: string): Promise<Store[]> {
+
+
+
+    async getAllStoresByFilters(allStoresFiltersQuery: GetStoresFilterDto): Promise<Store[]> {
         try {
 
-            const { category, page, limit } = getStoreByCountryQuery
+            const { country, category, page, limit } = allStoresFiltersQuery
             const skip = (page - 1) * limit;
 
             const query: any = {}
