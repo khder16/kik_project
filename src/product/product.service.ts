@@ -8,8 +8,9 @@ import { Cache } from 'cache-manager'
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { UpdateProductDto } from 'src/store/dto/update-product.dto';
 import { SearchDto } from './dto/search.dto';
-import { ProductFilterDto } from './dto/filter-serch-query.dto';
+import { ProductFilterandSearchDto } from './dto/filter-serch-query.dto';
 import { CACHE_TTLS } from 'src/common/constant/cache.constants';
+import { SimpleStore } from 'src/common/interfaces/storeData.interface';
 
 
 
@@ -112,24 +113,44 @@ export class ProductService {
     }
 
 
-    async getProductsByStoreId(storeId: string, page: number, limit: number) {
+    async getProductsByStoreId(storeId: any, page: number, limit: number) {
         try {
             const skip = (page - 1) * limit;
+            if (limit > 50) throw new BadRequestException('Maximum limit is 50');
             const cacheKey = `products:${storeId}:page${page}:limit${limit}`;
-            const cached = await this.cacheManager.get<Product[]>(cacheKey);
-            if (cached) return cached;
-            const filtered = await this.productModel.
-                find({
-                    store: storeId,
-                })
-                .select('_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
-                .skip(skip).limit(limit).lean().exec();
+            const cached = await this.cacheManager.get<{ products: Product[], total: number }>(cacheKey);
 
+            if (cached) return cached;
+
+            const [products, totalCount] = await Promise.all([
+                this.productModel.find({ store: storeId })
+                    .select('_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
+                    .skip(skip)
+                    .limit(limit)
+                    .lean()
+                    .exec(),
+                this.productModel.countDocuments({ store: storeId })
+            ]);
+
+            const totalPages = Math.ceil(totalCount / limit);
+            const hasNextPage = page < totalPages;
+            const hasPreviousPage = page > 1;
+
+            const result = {
+                data: products, meta: {
+                    currentPage: page,
+                    itemsPerPage: limit,
+                    totalItems: totalCount,
+                    totalPages,
+                    hasNextPage,
+                    hasPreviousPage
+                },
+            };
 
             // Caching the result
-            await this.cacheManager.set(cacheKey, filtered, CACHE_TTLS.PRODUCTS);
+            await this.cacheManager.set(cacheKey, result, CACHE_TTLS.PRODUCTS);
 
-            return filtered || []
+            return result
         } catch (error) {
             this.logger.error(`Error get products: ${error.message}`, error.stack);
             if (error instanceof HttpException) {
@@ -140,12 +161,15 @@ export class ProductService {
     }
 
 
-    async filteredProducts(filterQueryDto: ProductFilterDto) {
+    async filteredProducts(filterQueryDto: ProductFilterandSearchDto) {
 
         try {
             const { country, category, minPrice, maxPrice, page, limit } = filterQueryDto
             const cacheKey = `products:${country}:${category}:${minPrice}:${maxPrice}:${page}:${limit}`;
-            const cached = await this.cacheManager.get<Product[]>(cacheKey);
+            const cacheCountKey = `products_count:${country}:${category}:${minPrice}:${maxPrice}`;
+            const cached = await this.cacheManager.get<{ data: Product[], meta: any }>(cacheKey);
+
+            if (limit > 50) throw new BadRequestException('Maximum limit is 50');
 
             if (cached) {
                 return cached;
@@ -169,24 +193,43 @@ export class ProductService {
             if (maxPrice !== undefined && maxPrice !== null && !isNaN(maxPrice)) {
                 query.price = { ...query.price, $lte: maxPrice };
             }
+            const [products, totalCount] = await Promise.all([
+                this.productModel.find(query)
+                    .populate({
+                        path: 'store',
+                        select: '_id owner name country'
+                    })
+                    .select('_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
+                    .skip(skip)
+                    .limit(limit)
+                    .sort({ createdAt: -1 })
+                    .lean()
+                    .exec(),
+                this.productModel.countDocuments(query)
+            ]);
 
-            const products = await this.productModel
-                .find(query)
-                .populate({
-                    path: 'store',
-                    select: '_id owner name country'
-                })
-                .select('_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt')
-                .skip(skip)
-                .limit(limit)
-                .sort({ createdAt: -1 })
-                .lean()
-                .exec()
+            // Calculate pagination metadata
+            const totalPages = Math.ceil(totalCount / limit);
+            const hasNextPage = page < totalPages;
+            const hasPreviousPage = page > 1;
 
-            // Caching the results
-            await this.cacheManager.set(cacheKey, products, CACHE_TTLS.PRODUCTS); // cache for 10 minute
+            const response = {
+                data: products || [],
+                meta: {
+                    currentPage: page,
+                    itemsPerPage: limit,
+                    totalItems: totalCount,
+                    totalPages,
+                    hasNextPage,
+                    hasPreviousPage,
+                }
+            };
+            await Promise.all([
+                this.cacheManager.set(cacheKey, response, CACHE_TTLS.PRODUCTS),
+                this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.PRODUCTS)
+            ]);
 
-            return products || []
+            return response
         } catch (error) {
             this.logger.error(`Error get filtered products: ${error.message}`, error.stack);
             if (error instanceof HttpException) {
@@ -196,7 +239,7 @@ export class ProductService {
         }
     }
 
-    async getProductById(productId: string): Promise<Product> {
+    async getProductById(productId: string): Promise<any> {
         try {
 
             const cacheKey = `product:${productId}`;
@@ -210,7 +253,7 @@ export class ProductService {
 
 
             const product = await this.productModel.findById(productId)
-                .populate({
+                .populate<{ store: { _id: any; name: string; facebook?: string; instagram?: string; whatsApp?: string; email: string; country: string } }>({
                     path: 'store',
                     select: '_id name facebook instagram whatsApp email country'
                 })
@@ -220,6 +263,12 @@ export class ProductService {
 
             if (!product || !product.store) {
                 throw new NotFoundException('Product not found or not available in your country');
+            }
+
+            if (product.store as SimpleStore) {
+                product.store.facebook = product.store.facebook || null;
+                product.store.instagram = product.store.instagram || null;
+                product.store.whatsApp = product.store.whatsApp || null;
             }
 
             await this.cacheManager.set(cacheKey, product, CACHE_TTLS.PRODUCTS)
@@ -269,28 +318,29 @@ export class ProductService {
     }
 
 
-    async searchProducts(querySearch: SearchDto) {
+    async searchProducts(querySearch: ProductFilterandSearchDto) {
         try {
-            const { search, page, limit } = querySearch
-
-            if (!search || search.trim().length < 2) {
-                throw new BadRequestException('Search term must be at least 2 characters');
-            }
+            const { search, country, category, minPrice, maxPrice, page, limit } = querySearch;
 
             const skip = (page - 1) * limit;
+            if (limit > 50) throw new BadRequestException('Maximum limit is 50');
+
             // 2. Decode and sanitize
             const decodedSearch = decodeURIComponent(search.trim());
             // Prevent regex injection
             const sanitizedSearch = this.escapeRegex(decodedSearch);
-            const cacheKey = `search:${sanitizedSearch}:${page}:${limit}`;
-            const cached = await this.cacheManager.get<Product[]>(cacheKey);
+            const cacheKey = `search:${search || 'no-search'}:${country || 'all'}:${category || 'all'}:${minPrice || '0'}:${maxPrice || 'inf'}:${page}:${limit}`;
+            const cached = await this.cacheManager.get(cacheKey);
 
             if (cached) {
                 return cached;
             }
 
-            const query: any = {
-                $or: [
+            const query: any = {};
+
+            if (search && search.trim().length >= 2) {
+                const sanitizedSearch = this.escapeRegex(decodeURIComponent(search.trim()));
+                query.$or = [
                     { name_ar: { $regex: sanitizedSearch, $options: 'i' } },
                     { name_en: { $regex: sanitizedSearch, $options: 'i' } },
                     { name_no: { $regex: sanitizedSearch, $options: 'i' } },
@@ -298,30 +348,56 @@ export class ProductService {
                     { description_en: { $regex: sanitizedSearch, $options: 'i' } },
                     { description_no: { $regex: sanitizedSearch, $options: 'i' } }
                 ]
-            };
+            } else if (search && search.trim().length < 2) {
+                throw new BadRequestException('Search term must be at least 2 characters');
+            }
+
+            if (country) query.country = country;
+            if (category) query.category = category;
+            if (minPrice !== undefined) query.price = { ...query.price, $gte: minPrice };
+            if (maxPrice !== undefined) query.price = { ...query.price, $lte: maxPrice };
+
             const collationSettings = {
                 'syria': { locale: 'ar', strength: 2 },
                 'norway': { locale: 'nb', strength: 2 }
             };
 
+            const [products, totalCount] = await Promise.all([
+                this.productModel.find(query)
+                    .populate({
+                        path: 'store',
+                        select: '_id name country',
+                    })
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean()
+                    .exec(),
+                this.productModel.countDocuments(query)
+            ]);
 
-            const products = await this.productModel
-                .find(query)
-                .populate({
-                    path: 'store',
-                    select: '_id name country',
-                })
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .lean()
-                .exec()
+            // Calculate pagination metadata
+            const totalPages = Math.ceil(totalCount / limit);
+            const hasNextPage = page < totalPages;
+            const hasPreviousPage = page > 1;
 
-            await this.cacheManager.set(cacheKey, products, CACHE_TTLS.PRODUCTS);
-            return products
+            const response = {
+                data: products,
+                meta: {
+                    currentPage: page,
+                    itemsPerPage: limit,
+                    totalItems: totalCount,
+                    totalPages,
+                    hasNextPage,
+                    hasPreviousPage,
+                    searchTerm: sanitizedSearch || null
+                }
+            };
+            await this.cacheManager.set(cacheKey, response, CACHE_TTLS.PRODUCTS);
 
+            return response
         } catch (error) {
-            this.logger.error(`Product search failed for term `, error.stack);
+            this.logger.error(`Product search failed: ${error.message}`, error.stack);
             if (error instanceof HttpException) {
                 throw error;
             }

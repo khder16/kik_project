@@ -65,10 +65,25 @@ export class CartController {
         description: '[PARAM] MongoDB ID of the product to remove',
         example: '507f1f77bcf86cd799439011'
     })
+    @ApiBody({
+        type: UpdateCartItemDto,
+        description: '[BODY] New quantity for the item',
+        examples: {
+            example1: {
+                value: { quantity: 3 }
+            }
+        }
+    })
+    @ApiQuery({
+        name: 'limit',
+        description: '[QUERY] Items per page (default: 10)',
+        required: false,
+        type: Number
+    })
     @ApiResponse({ status: 200, description: 'Item removed from cart' })
     @ApiResponse({ status: 404, description: 'Item not found in cart' })
-    async removeFromCart(@UserDecorator('_id') userId: string, @Param('productId') productId: string) {
-        return this.cartService.removeFromCart(userId, productId)
+    async removeFromCart(@UserDecorator('_id') userId: string, @Param('productId') productId: string, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+        return this.cartService.removeFromCart(userId, productId, page, limit)
     }
 
 
@@ -91,11 +106,21 @@ export class CartController {
             }
         }
     })
+    @ApiQuery({
+        name: 'limit',
+        description: '[QUERY] Items per page (default: 10)',
+        required: false,
+        type: Number
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns cart items with pagination'
+    })
     @ApiResponse({ status: 200, description: 'Quantity updated' })
     @ApiResponse({ status: 400, description: 'Invalid quantity' })
     @ApiResponse({ status: 404, description: 'Item not found in cart' })
-    async updateCartItem(@UserDecorator('_id') userId: string, @Param('productId') productId: string, @Body() updateItemDto: UpdateCartItemDto) {
-        return this.cartService.updateCartItem(userId, productId, updateItemDto.quantity)
+    async updateCartItem(@UserDecorator('_id') userId: string, @Param('productId') productId: string, @Body() updateItemDto: UpdateCartItemDto, @Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+        return this.cartService.updateCartItem(userId, productId, updateItemDto.quantity, page, limit)
     }
 
 

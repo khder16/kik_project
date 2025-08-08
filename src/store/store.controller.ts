@@ -66,7 +66,12 @@ export class StoreController {
         }
 
         const newStore = await this.storeService.createStore(storeDto, ownerId, imagePath);
-        return newStore;
+        // 2. Initiate Stripe connection
+        // const stripeLink = await this.stripeService.connectStripeAccount(newStore._id, user._id);
+        return {
+            newStore,
+            // stripeOnboardingUrl: stripeLink.url
+        };
     }
 
 

@@ -98,10 +98,8 @@ export class SellerController {
     })
     async getAllSellerProducts(@UserDecorator('_id') sellerId: string, @Query('page') page: number = 1,
         @Query('limit') limit: number = 10,) {
-
         const store = await this.storeService.getStoresBySellerId(sellerId)
-
-        return await this.productService.getProductsByStoreId(store._id.toString(), page, limit)
+        return await this.productService.getProductsByStoreId(store._id, page, limit)
     }
 
     @Roles(UserRole.SELLER)
@@ -215,10 +213,7 @@ export class SellerController {
     ) {
         // 2. Input validation
         this.validateRequiredFields(storeId, images);
-
-
         await this.validateUserOwnsStore(storeId, user._id.toString());
-
 
         try {
             // 3. Business logic

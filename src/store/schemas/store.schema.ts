@@ -29,16 +29,16 @@ export class Store {
   phoneNumber: string;
 
 
-  @Prop({ type: String, unique: true, sparse: true })
+  @Prop({ type: String, unique: true, sparse: true, default: null, })
   email: string;
 
-  @Prop({ type: String, unique: true, sparse: true })
+  @Prop({ type: String, unique: true, sparse: true, default: null, })
   facebook?: string;
 
-  @Prop({ type: String, unique: true, sparse: true })
+  @Prop({ type: String, unique: true, sparse: true, default: null, })
   instagram?: string;
 
-  @Prop({ type: String, unique: true, sparse: true })
+  @Prop({ type: String, unique: true, sparse: true, default: null, })
   whatsApp?: string;
 
 
@@ -77,6 +77,9 @@ export class Store {
 
   @Prop({ type: String, select: false }) // Stripe account ID
   stripeAccountId?: string;
+
+  @Prop({ type: String, enum: ['pending', 'active'], defult: 'pending' })
+  stripeStatus: string;
 
 }
 

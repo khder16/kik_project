@@ -71,149 +71,149 @@
 
 // @Injectable()
 // export class PaymentService {
-//   private stripe: Stripe;
+//     private stripe: Stripe;
 
-//   constructor(
-//     @InjectModel(PayoutAccount.name) private payoutAccountModel: Model<PayoutAccount>,
-//     @InjectModel(Seller.name) private sellerModel: Model<Seller>,
-//   ) {
-//     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-//       apiVersion: '2023-08-16',
-//     });
+//     constructor(
+//         @InjectModel(PayoutAccount.name) private payoutAccountModel: Model<PayoutAccount>,
+//         @InjectModel(Seller.name) private sellerModel: Model<Seller>,
+//     ) {
+//         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+//             apiVersion: '2023-08-16',
+//         });
+//     }
+
+//     // Set up seller's payout account
+//     async setupPayoutAccount(
+//         sellerId: string,
+//         method: 'paypal' | 'stripe',
+//         details: { email?: string; stripeToken?: string },
+//     ) {
+//         let account = await this.payoutAccountModel.findOne({ sellerId });
+
+//       if (!account) {
+//           account = new this.payoutAccountModel({ sellerId });
+//       }
+
+//       account.payoutMethod = method;
+
+//       if (method === 'paypal' && details.email) {
+//           account.paypalEmail = details.email;
+//           account.stripeAccountId = undefined;
+//           account.bankAccountId = undefined;
+//       } else if (method === 'stripe' && details.stripeToken) {
+//           // Create Stripe connected account or attach bank account
+//           const stripeAccount = await this.setupStripeAccount(sellerId, details.stripeToken);
+//           account.stripeAccountId = stripeAccount.id;
+//           account.paypalEmail = undefined;
+//       }
+
+//       return account.save();
 //   }
 
-//   // Set up seller's payout account
-//   async setupPayoutAccount(
-//     sellerId: string,
-//     method: 'paypal' | 'stripe',
-//     details: { email?: string; stripeToken?: string },
-//   ) {
-//     let account = await this.payoutAccountModel.findOne({ sellerId });
+//     // Setup Stripe connected account
+//     private async setupStripeAccount(sellerId: string, token: string) {
+//         const seller = await this.sellerModel.findById(sellerId);
 
-//     if (!account) {
-//       account = new this.payoutAccountModel({ sellerId });
-//     }
-
-//     account.payoutMethod = method;
-
-//     if (method === 'paypal' && details.email) {
-//       account.paypalEmail = details.email;
-//       account.stripeAccountId = undefined;
-//       account.bankAccountId = undefined;
-//     } else if (method === 'stripe' && details.stripeToken) {
-//       // Create Stripe connected account or attach bank account
-//       const stripeAccount = await this.setupStripeAccount(sellerId, details.stripeToken);
-//       account.stripeAccountId = stripeAccount.id;
-//       account.paypalEmail = undefined;
-//     }
-
-//     return account.save();
-//   }
-
-//   // Setup Stripe connected account
-//   private async setupStripeAccount(sellerId: string, token: string) {
-//     const seller = await this.sellerModel.findById(sellerId);
-    
-//     return this.stripe.accounts.create({
-//       type: 'express',
-//       country: 'US', // Adjust based on your sellers' location
-//       email: seller.email, // Assuming you have seller email
-//       capabilities: {
-//         transfers: { requested: true },
-//       },
-//       external_account: token, // Bank account token from Stripe.js
-//     });
-//   }
-
-//   // Process payout to seller
-//   async processPayout(sellerId: string, amount: number) {
-//     const account = await this.payoutAccountModel.findOne({ sellerId });
-//     const seller = await this.sellerModel.findById(sellerId);
-
-//     if (!account || !seller) {
-//       throw new Error('Seller or payout account not found');
-//     }
-
-//     if (seller.balance < amount) {
-//       throw new Error('Insufficient balance');
-//     }
-
-//     let payoutResult;
-
-//     if (account.payoutMethod === 'paypal' && account.paypalEmail) {
-//       payoutResult = await this.processPaypalPayout(account.paypalEmail, amount);
-//     } else if (account.payoutMethod === 'stripe' && account.stripeAccountId) {
-//       payoutResult = await this.processStripePayout(account.stripeAccountId, amount);
-//     } else {
-//       throw new Error('No valid payout method configured');
-//     }
-
-//     // Update seller balance
-//     seller.balance -= amount;
-//     await seller.save();
-
-//     return payoutResult;
-//   }
-
-//   private async processPaypalPayout(email: string, amount: number) {
-//     const accessToken = await this.getPaypalAccessToken();
-//     const payoutData = {
-//       sender_batch_header: {
-//         email_subject: 'Your marketplace earnings',
-//       },
-//       items: [
-//         {
-//           recipient_type: 'EMAIL',
-//           amount: {
-//             value: amount.toFixed(2),
-//             currency: 'USD',
+//       return this.stripe.accounts.create({
+//           type: 'express',
+//           country: 'US', // Adjust based on your sellers' location
+//           email: seller.email, // Assuming you have seller email
+//           capabilities: {
+//               transfers: { requested: true },
 //           },
-//           receiver: email,
-//           note: 'Thanks for selling with us!',
-//         },
-//       ],
-//     };
-
-//     const response = await axios.post(
-//       'https://api.paypal.com/v1/payments/payouts',
-//       payoutData,
-//       {
-//         headers: {
-//           'Content-Type': 'application/json',
-//           Authorization: `Bearer ${accessToken}`,
-//         },
-//       },
-//     );
-
-//     return response.data;
+//           external_account: token, // Bank account token from Stripe.js
+//       });
 //   }
 
-//   private async processStripePayout(accountId: string, amount: number) {
-//     return this.stripe.transfers.create({
-//       amount: Math.round(amount * 100), // Convert to cents
-//       currency: 'usd',
-//       destination: accountId,
-//     });
+//     // Process payout to seller
+//     async processPayout(sellerId: string, amount: number) {
+//         const account = await this.payoutAccountModel.findOne({ sellerId });
+//         const seller = await this.sellerModel.findById(sellerId);
+
+//       if (!account || !seller) {
+//           throw new Error('Seller or payout account not found');
+//       }
+
+//       if (seller.balance < amount) {
+//           throw new Error('Insufficient balance');
+//       }
+
+//       let payoutResult;
+
+//       if (account.payoutMethod === 'paypal' && account.paypalEmail) {
+//           payoutResult = await this.processPaypalPayout(account.paypalEmail, amount);
+//       } else if (account.payoutMethod === 'stripe' && account.stripeAccountId) {
+//           payoutResult = await this.processStripePayout(account.stripeAccountId, amount);
+//       } else {
+//           throw new Error('No valid payout method configured');
+//       }
+
+//       // Update seller balance
+//       seller.balance -= amount;
+//       await seller.save();
+
+//       return payoutResult;
 //   }
 
-//   private async getPaypalAccessToken(): Promise<string> {
-//     const auth = Buffer.from(
-//       `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`,
-//     ).toString('base64');
+//     private async processPaypalPayout(email: string, amount: number) {
+//         const accessToken = await this.getPaypalAccessToken();
+//         const payoutData = {
+//             sender_batch_header: {
+//                 email_subject: 'Your marketplace earnings',
+//             },
+//             items: [
+//                 {
+//                     recipient_type: 'EMAIL',
+//                     amount: {
+//                         value: amount.toFixed(2),
+//                         currency: 'USD',
+//                     },
+//                     receiver: email,
+//                     note: 'Thanks for selling with us!',
+//                 },
+//             ],
+//         };
 
-//     const response = await axios.post(
-//       'https://api.paypal.com/v1/oauth2/token',
-//       'grant_type=client_credentials',
-//       {
-//         headers: {
-//           Authorization: `Basic ${auth}`,
-//           'Content-Type': 'application/x-www-form-urlencoded',
-//         },
-//       },
-//     );
+//       const response = await axios.post(
+//           'https://api.paypal.com/v1/payments/payouts',
+//           payoutData,
+//           {
+//               headers: {
+//                   'Content-Type': 'application/json',
+//                   Authorization: `Bearer ${accessToken}`,
+//               },
+//           },
+//       );
 
-//     return response.data.access_token;
+//       return response.data;
 //   }
+
+//     private async processStripePayout(accountId: string, amount: number) {
+//         return this.stripe.transfers.create({
+//             amount: Math.round(amount * 100), // Convert to cents
+//             currency: 'usd',
+//             destination: accountId,
+//         });
+//     }
+
+//     private async getPaypalAccessToken(): Promise<string> {
+//         const auth = Buffer.from(
+//             `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`,
+//         ).toString('base64');
+
+//       const response = await axios.post(
+//           'https://api.paypal.com/v1/oauth2/token',
+//           'grant_type=client_credentials',
+//           {
+//               headers: {
+//                   Authorization: `Basic ${auth}`,
+//                   'Content-Type': 'application/x-www-form-urlencoded',
+//               },
+//           },
+//       );
+
+//         return response.data.access_token;
+//     }
 // }
 
 

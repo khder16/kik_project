@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User } from './schemas/user.schema';
@@ -6,12 +6,15 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcryptjs';
 import { CountryEnum } from 'src/auth/dto/signup.dto';
-
+import { CACHE_TTLS } from 'src/common/constant/cache.constants';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class UserService {
     constructor(
         @InjectModel(User.name) private userModel: Model<User>,
+        @Inject(CACHE_MANAGER) private cacheManager: Cache
     ) { }
 
     private readonly logger = new Logger(UserService.name);
@@ -76,14 +79,59 @@ export class UserService {
     }
 
 
-    async findAllUsers(page: number, limit: number): Promise<User[]> {
+    async findAllUsers(page: number, limit: number): Promise<{ data: User[]; meta: any; }> {
         try {
-            const skip = (page - 1) * limit
-            const users = await this.userModel.find({ role: 'normal_user' }).select('_id firstName lastName role email phoneNumber country').skip(skip).limit(limit).lean().exec();
-            if (!users) {
+            const skip = (page - 1) * limit;
+            const cacheKey = `users:normal:${page}:${limit}`;
+            const cacheCountKey = `users_count:normal`;
+
+            // Try to get cached data
+            const cached = await this.cacheManager.get<{
+                data: User[];
+                meta: any;
+            }>(cacheKey);
+
+            if (cached) return cached;
+
+            // Queries
+            const [users, totalCount] = await Promise.all([
+                this.userModel.find({ role: 'normal_user' })
+                    .select('_id firstName lastName role email phoneNumber country')
+                    .skip(skip)
+                    .limit(limit)
+                    .lean()
+                    .exec(),
+                this.userModel.countDocuments({ role: 'normal_user' })
+            ]);
+
+            if (!users || users.length === 0) {
                 throw new NotFoundException('Users not found.');
             }
-            return users;
+
+            const totalPages = Math.ceil(totalCount / limit);
+            const hasNextPage = page < totalPages;
+            const hasPreviousPage = page > 1;
+
+            const response = {
+                data: users,
+                meta: {
+                    currentPage: page,
+                    itemsPerPage: limit,
+                    totalItems: totalCount,
+                    totalPages,
+                    hasNextPage,
+                    hasPreviousPage
+                }
+            };
+
+            // Cache results
+            await Promise.all([
+                this.cacheManager.set(cacheKey, response, CACHE_TTLS.PRODUCTS),
+                this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.PRODUCTS)
+            ]);
+
+            return response;
+
         } catch (error) {
             this.logger.error(`Error finding users: ${error.message}`, error.stack);
             if (error instanceof NotFoundException || error instanceof BadRequestException) {
@@ -108,6 +156,7 @@ export class UserService {
             throw new InternalServerErrorException('Failed to retrieve user by ID due to an unexpected server error.');
         }
     }
+
 
     async findByEmail(email: string): Promise<User | null> {
         try {

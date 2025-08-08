@@ -1,9 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString, Min, IsPositive, IsEnum } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Min, IsPositive, IsEnum, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CountryEnum } from '../schemas/product.schema';
 
-export class ProductFilterDto {
+export class ProductFilterandSearchDto {
     @ApiPropertyOptional({
         description: 'Product category filter',
         example: 'electronics',
@@ -12,6 +12,11 @@ export class ProductFilterDto {
     @IsOptional()
     @IsString()
     category?: string;
+
+    @IsOptional()
+    @IsString()
+    @MinLength(2, { message: 'Search term must be at least 2 characters' })
+    search?: string;
 
 
     @ApiProperty({

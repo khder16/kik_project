@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, HttpException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Review } from './schemas/review.schema';
@@ -137,11 +137,20 @@ export class ReviewsService {
         page: number = 1,
         limit: number = 10
     ): Promise<{
-        reviews: Review[];
+        data: Review[];
+        meta: {
+            currentPage: number;
+            itemsPerPage: number;
+            totalItems: number;
+            totalPages: number;
+            hasNextPage: boolean;
+            hasPreviousPage: boolean;
+        };
         summary: {
             averageStarsRating: number;
             totalStars: number;
             totalComments: number;
+            starDistribution?: Record<number, number>; // Optional: Add star distribution
         };
     }> {
         type CachedReviews = {
@@ -152,12 +161,21 @@ export class ReviewsService {
                 totalComments: number;
             };
         };
+        if (limit > 50) throw new BadRequestException('Maximum limit is 50');
+
         try {
             const cacheKey = `reviews:${productId}:page${page}:limit${limit}`;
-            const cached = await this.cacheManager.get<CachedReviews>(cacheKey);
-            if (cached && cached.reviews && cached.summary) {
-                return cached;
-            }
+            const cacheCountKey = `reviews_count:${productId}`;
+            const cacheSummaryKey = `reviews_summary:${productId}`;
+            const cached = await this.cacheManager.get<{
+                data: Review[];
+                meta: any;
+                summary: any;
+            }>(cacheKey);
+
+
+            if (cached) return cached;
+
 
             const skip = (page - 1) * limit;
 
@@ -170,57 +188,76 @@ export class ReviewsService {
                 throw new NotFoundException('Product not found');
             }
 
-            const reviews = await this.reviewModel
-                .find({ productId })
-                .populate({
-                    path: 'reviewedBy',
-                    select: '-_id firstName lastName',
-                    model: 'User',
-                    options: { lean: true }
-                })
-                .select('comments stars createdAt reviewedBy')
-                .skip(skip)
-                .limit(limit)
-                .sort({ createdAt: -1 })
-                .lean()
-                .exec();
-
-            const summaryResult = await this.reviewModel.aggregate([
-                { $match: { productId } },
-                {
-                    $group: {
-                        _id: null,
-                        averageStarsRating: { $avg: '$stars' },
-                        totalStars: {
-                            $sum: {
-                                $cond: [{ $ifNull: ['$stars', false] }, 1, 0]
-                            }
-                        },
-                        totalComments: {
-                            $sum: {
-                                $cond: [{ $ifNull: ['$comments', false] }, 1, 0]
+            const [reviews, totalCount, summaryResult] = await Promise.all([
+                this.reviewModel.find({ productId })
+                    .populate({
+                        path: 'reviewedBy',
+                        select: 'firstName lastName avatar',
+                        model: 'User',
+                        options: { lean: true }
+                    })
+                    .select('comments stars createdAt reviewedBy')
+                    .skip(skip)
+                    .limit(limit)
+                    .sort({ createdAt: -1 })
+                    .lean()
+                    .exec(),
+                this.reviewModel.countDocuments({ productId }),
+                this.reviewModel.aggregate([
+                    { $match: { productId } },
+                    {
+                        $group: {
+                            _id: null,
+                            averageStarsRating: { $avg: '$stars' },
+                            totalStars: { $sum: 1 },
+                            totalComments: {
+                                $sum: {
+                                    $cond: [{ $ifNull: ['$comments', false] }, 1, 0]
+                                }
+                            },
+                            // Optional: Star distribution
+                            starDistribution: {
+                                $push: '$stars'
                             }
                         }
                     }
-                }
+                ])
             ]);
 
+
+            const totalPages = Math.ceil(totalCount / limit);
+            const hasNextPage = page < totalPages;
+            const hasPreviousPage = page > 1;
+
+            // Process summary data
             const summary = summaryResult[0] || {
                 averageStarsRating: 0,
                 totalStars: 0,
                 totalComments: 0
             };
-            await this.cacheManager.set(cacheKey, { reviews, summary }, CACHE_TTLS.DETAILS);
-            return {
-                reviews,
+
+            const response = {
+                data: reviews,
+                meta: {
+                    currentPage: page,
+                    itemsPerPage: limit,
+                    totalItems: totalCount,
+                    totalPages,
+                    hasNextPage,
+                    hasPreviousPage
+                },
                 summary: {
-                    averageStarsRating: summary?.averageStarsRating
-                        ? parseFloat(summary.averageStarsRating.toFixed(1))
-                        : 0,
+                    averageStarsRating: parseFloat((summary.averageStarsRating || 0).toFixed(1)),
                     totalStars: summary.totalStars,
                     totalComments: summary.totalComments
                 }
             };
+            await Promise.all([
+                this.cacheManager.set(cacheKey, response, CACHE_TTLS.DETAILS),
+                this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.DETAILS),
+                this.cacheManager.set(cacheSummaryKey, response.summary, CACHE_TTLS.DETAILS)
+            ]);
+            return response;
         } catch (error) {
             this.logger.error(
                 `Error fetching reviews for product ${productId}: ${error.message}`,

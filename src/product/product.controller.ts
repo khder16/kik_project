@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { ReviewsService } from 'src/reviews/reviews.service';
@@ -7,7 +7,7 @@ import { CreateReviewDto } from 'src/reviews/dto/create-review.dto';
 import { UserDecorator } from 'src/common/decorators/userId.decorator';
 import { CountryEnum } from 'src/auth/dto/signup.dto';
 import { SearchDto } from './dto/search.dto';
-import { ProductFilterDto } from './dto/filter-serch-query.dto';
+import { ProductFilterandSearchDto } from './dto/filter-serch-query.dto';
 import { OptionalJwtAuthGuard } from 'src/common/guards/optionalAuthentication.guard';
 
 @ApiTags('Products')
@@ -34,6 +34,34 @@ export class ProductController {
         example: 'laptop'
     })
     @ApiQuery({
+        name: 'category',
+        description: '[QUERY] Product category filter',
+        type: String,
+        required: false,
+        example: 'electronics'
+    })
+    @ApiQuery({
+        name: 'country',
+        description: '[QUERY] Product country filter',
+        type: String,
+        required: false,
+        example: 'syria'
+    })
+    @ApiQuery({
+        name: 'minPrice',
+        description: '[QUERY] Minimum price (inclusive)',
+        type: Number,
+        required: false,
+        example: 100
+    })
+    @ApiQuery({
+        name: 'maxPrice',
+        description: '[QUERY] Maximum price (inclusive)',
+        type: Number,
+        required: false,
+        example: 1000
+    })
+    @ApiQuery({
         name: 'page',
         description: '[QUERY] Page number (default: 1)',
         type: Number,
@@ -56,7 +84,7 @@ export class ProductController {
         description: 'Invalid search parameters'
     })
     async searchProduct(
-        @Query() query: SearchDto,
+        @Query() query: ProductFilterandSearchDto,
     ) {
         return await this.productService.searchProducts(query);
     }
@@ -134,7 +162,7 @@ export class ProductController {
         description: 'Returns filtered products with pagination'
     })
     async filterProducts(
-        @Query() filterDto: ProductFilterDto,
+        @Query() filterDto: ProductFilterandSearchDto,
     ) {
         return await this.productService.filteredProducts(filterDto);
     }

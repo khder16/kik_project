@@ -1,10 +1,14 @@
-import { BadRequestException, HttpException, Injectable, InternalServerErrorException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cart } from './schemas/cart.schema';
 import { Product } from 'src/product/schemas/product.schema';
 import { Model, Types } from 'mongoose';
 import { ProductService } from 'src/product/product.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { CACHE_TTLS } from 'src/common/constant/cache.constants';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+
 
 
 @Injectable()
@@ -12,6 +16,7 @@ export class CartService {
     constructor(
         @InjectModel(Cart.name) private readonly cartModel: Model<Cart>,
         @InjectModel(Product.name) private readonly productModel: Model<Product>,
+        @Inject(CACHE_MANAGER) private cacheManager: Cache
     ) { }
 
     private readonly logger = new Logger(CartService.name);
@@ -72,6 +77,8 @@ export class CartService {
             await cart.save({ session })
             await session.commitTransaction();
 
+            await this.clearUserCartCache(userInfo._id);
+
             return cart;
         } catch (error) {
             await session.abortTransaction();
@@ -88,26 +95,61 @@ export class CartService {
 
 
 
-    async getUserCart(userId: string, page: number = 1, limit: number = 10): Promise<Cart> {
+    async getUserCart(userId: string, page: number = 1, limit: number = 10): Promise<{ data: Cart; meta: any }> {
         try {
             const skip = (page - 1) * limit
+            const cacheKey = `cart:${userId}:${page}:${limit}`;
+            const cacheCountKey = `cart_count:${userId}`;
+
+            const cached = await this.cacheManager.get<{
+                data: Cart;
+                meta: any;
+            }>(cacheKey);
+
+            if (cached) return cached;
+
             let cart = await this.cartModel.findOne({ user: userId })
                 .populate({
                     path: 'items.product',
                     select: '_id name_en name_ar name_no price images store category',
+                    options: { skip, limit }
                 })
-                .skip(skip)
-                .limit(limit)
+                .lean()
                 .exec();
+
             if (!cart) {
-                cart = new this.cartModel({
+                cart = await this.cartModel.create({
                     user: userId,
                     items: [],
                     totalPrice: 0,
                 });
             }
-            await cart.save()
-            return cart;
+            const totalItems = await this.cartModel.aggregate([
+                { $match: { user: userId } },
+                { $project: { count: { $size: "$items" } } }
+            ]);
+            const itemCount = totalItems[0]?.count || 0;
+            const totalPages = Math.ceil(itemCount / limit);
+            const hasNextPage = page < totalPages;
+            const hasPreviousPage = page > 1;
+
+            const response = {
+                data: cart,
+                meta: {
+                    currentPage: page,
+                    itemsPerPage: limit,
+                    totalItems: itemCount,
+                    totalPages,
+                    hasNextPage,
+                    hasPreviousPage
+                }
+            };
+            await Promise.all([
+                this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART),
+                this.cacheManager.set(cacheCountKey, itemCount, CACHE_TTLS.CART)
+            ]);
+
+            return response;
         } catch (error) {
             this.logger.error(`Error getting user cart: ${error.message}`, error.stack);
             throw new InternalServerErrorException('Failed to get user cart');
@@ -116,7 +158,7 @@ export class CartService {
 
 
     // Remove item from cart
-    async removeFromCart(userId: string, productId: string): Promise<Cart> {
+    async removeFromCart(userId: string, productId: string, page: number, limit: number): Promise<Cart> {
         const session = await this.cartModel.db.startSession();
 
         try {
@@ -159,6 +201,9 @@ export class CartService {
             await cart.save({ session });
             await session.commitTransaction();
 
+            await this.clearUserCartCache(userId);
+
+
             // Return populated cart after transaction
             return await this.cartModel.findById(cart._id).populate('items.product');
         } catch (error) {
@@ -181,10 +226,13 @@ export class CartService {
     async updateCartItem(
         userId: string,
         productId: string,
-        newQuantity: number
-    ): Promise<Cart> {
+        newQuantity: number,
+        page: number,
+        limit: number
+    ): Promise<{ data: Cart; meta: any }> {
         if (newQuantity <= 0) {
-            return this.removeFromCart(userId, productId);
+            this.removeFromCart(userId, productId, page, limit);
+            return this.getUserCart(userId, page, limit);
         }
 
         const session = await this.cartModel.db.startSession();
@@ -231,7 +279,9 @@ export class CartService {
             await cart.save({ session });
             await session.commitTransaction();
 
-            return await this.cartModel.findById(cart._id).populate('items.product');
+            await this.clearUserCartCache(userId);
+
+            return await this.getUserCart(userId, page, limit);
         } catch (error) {
             if (session.inTransaction()) {
                 await session.abortTransaction();
@@ -317,4 +367,20 @@ export class CartService {
 
 
 
+    private async clearUserCartCache(userId: string) {
+        // Delete all paginated cache versions
+        const maxExpectedPages = 5;
+        const deletePromises = [];
+
+        for (let page = 1; page <= maxExpectedPages; page++) {
+            deletePromises.push(
+                this.cacheManager.del(`cart:${userId}:${page}:10`) // Assuming limit=10
+            );
+        }
+
+        // Delete the count cache
+        deletePromises.push(this.cacheManager.del(`cart_count:${userId}`));
+
+        await Promise.all(deletePromises);
+    }
 }

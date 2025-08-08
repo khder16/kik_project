@@ -10,6 +10,7 @@ import { Product } from 'src/product/schemas/product.schema';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { GetStoresFilterDto } from './dto/get-stores-by-country.dto';
+import { CACHE_TTLS } from 'src/common/constant/cache.constants';
 @Injectable()
 export class StoreService {
 
@@ -153,26 +154,59 @@ export class StoreService {
 
 
 
-    async getAllStoresByFilters(allStoresFiltersQuery: GetStoresFilterDto): Promise<Store[]> {
+    async getAllStoresByFilters(allStoresFiltersQuery: GetStoresFilterDto): Promise<{ data: Store[]; meta: any }> {
         try {
 
             const { country, category, page, limit } = allStoresFiltersQuery
             const skip = (page - 1) * limit;
+            if (limit > 50) throw new BadRequestException('Maximum limit is 50');
 
-            const query: any = {}
-            if (category) {
-                query.category = category
-            }
-            if (country) {
-                query.country = country
-            }
-            const stores = await this.storeModel.find(query).skip(skip).limit(limit)
+            const cacheKey = `stores:${country || 'all'}:${category || 'all'}:${page}:${limit}`;
+            const cacheCountKey = `stores_count:${country || 'all'}:${category || 'all'}`;
+            const cached = await this.cacheManager.get<{
+                data: Store[];
+                meta: any;
+            }>(cacheKey);
 
-            if (stores.length === 0) {
-                this.logger.log('No stores found in database');
-                return [];
+            if (cached) return cached;
+
+
+            // Queries
+            const query: any = {};
+            if (category) query.category = category;
+            if (country) query.country = country;
+
+            const [stores, totalCount] = await Promise.all([
+                this.storeModel.find(query)
+                    .skip(skip)
+                    .limit(limit)
+                    .lean()
+                    .exec(),
+                this.storeModel.countDocuments(query)
+            ]);
+
+            const totalPages = Math.ceil(totalCount / limit);
+            const hasNextPage = page < totalPages;
+            const hasPreviousPage = page > 1;
+
+            const response = {
+                data: stores,
+                meta: {
+                    currentPage: page,
+                    itemsPerPage: limit,
+                    totalItems: totalCount,
+                    totalPages,
+                    hasNextPage,
+                    hasPreviousPage,
+                }
             }
-            return stores;
+
+            await Promise.all([
+                this.cacheManager.set(cacheKey, response, CACHE_TTLS.PRODUCTS),
+                this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.PRODUCTS)
+            ]);
+
+            return response;
         } catch (error) {
             this.logger.error(`Failed to fetch stores: ${error.message}`, error.stack);
             if (error instanceof HttpException) {

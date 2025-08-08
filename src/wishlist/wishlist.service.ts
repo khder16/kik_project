@@ -21,25 +21,60 @@ export class WishlistService {
     async getUserWishlist(userId: string, page: number, limit: number) {
         try {
 
+            const skip = (page - 1) * limit
+            if (limit > 50) throw new BadRequestException('Maximum limit is 50');
+
             const cacheKey = `wishlist:${userId}:${page}:${limit}`;
-            const cached = await this.cacheManager.get<Product[]>(cacheKey);
+            const cacheCountKey = `wishlist_count:${userId}`;
+            const cached = await this.cacheManager.get<{ data: Product[]; meta: any }>(cacheKey);
 
             if (cached) return cached
 
-            const skip = (page - 1) * limit
-            const wishistPoducts = await this.wishlistModel.find({ user: userId }).populate({
-                path: 'products',
-                select: 'name_en name_ar name_no price images',
-                model: 'Product',
-            }).skip(skip).limit(limit).lean().exec()
+            const [wishistPoducts, totalItems] = await Promise.all([
+                this.wishlistModel.find({ user: userId })
+                    .populate({
+                        path: 'products',
+                        select: 'name_en name_ar name_no price images',
+                        model: 'Product',
+                    })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean()
+                    .exec(),
+                this.wishlistModel.aggregate([
+                    { $match: { user: userId } },
+                    { $project: { count: { $size: "$products" } } },
+                    { $group: { _id: null, total: { $sum: "$count" } } }
+                ]).exec()
+            ])
+
             if (!wishistPoducts) {
                 throw new NotFoundException(`Wishlist for user ${userId} not found`);
             }
 
-            // Caching the results
-            await this.cacheManager.set(cacheKey, wishistPoducts, CACHE_TTLS.CART); // cache for 5 minute
+            const totalCount = totalItems[0]?.total || 0;
+            const totalPages = Math.ceil(totalCount / limit);
+            const hasNextPage = page < totalPages;
+            const hasPreviousPage = page > 1;
 
-            return { wishistPoducts, countOfItems: wishistPoducts.length, }
+            const response = {
+                data: wishistPoducts,
+                meta: {
+                    currentPage: page,
+                    itemsPerPage: limit,
+                    totalItems: totalCount,
+                    totalPages,
+                    hasNextPage,
+                    hasPreviousPage
+                }
+            };
+
+            // Caching the results
+            await Promise.all([
+                this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART),
+                this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.CART)
+            ]);
+            return response
         } catch (error) {
             this.logger.error(`Error add to get user wishlist: ${error.message}`, error.stack);
             if (error instanceof HttpException) {
@@ -62,8 +97,7 @@ export class WishlistService {
                 user: userId,
                 products: productId
             });
-            // Clear wishlist cache for user after each toggle
-            await this.cacheManager.del(`wishlist:${userId}:*`);
+
 
             // Toggle operation
             if (existing) {
@@ -100,6 +134,9 @@ export class WishlistService {
                     { new: true, upsert: true },
                 ).lean()
                 .exec();
+
+            await this.clearUserWishlistCache(userId);
+
             return wishlist;
         } catch (error) {
             this.logger.error(`Error add to wishlist: ${error.message}`, error.stack);
@@ -119,7 +156,6 @@ export class WishlistService {
         }
 
         try {
-
             const updated = await this.wishlistModel
                 .findOneAndUpdate(
                     { user: userId },
@@ -132,6 +168,7 @@ export class WishlistService {
                 throw new NotFoundException(`Wishlist for user ${userId} not found`);
             }
 
+            await this.clearUserWishlistCache(userId);
             return updated
         } catch (error) {
             this.logger.error(`Error removing from wishlist: ${error.message}`, error.stack);
@@ -168,6 +205,7 @@ export class WishlistService {
     }
 
 
+
     async findOrCreateWishlist(userId: string): Promise<WishlistDocument> {
         let wishlist = await this.wishlistModel.findOne({ user: userId }).exec();
         if (!wishlist) {
@@ -175,6 +213,20 @@ export class WishlistService {
         }
         return wishlist;
     }
+    private async clearUserWishlistCache(userId: string) {
 
+        const maxPages = 5;
+        const deletePromises = [];
 
-}
+        for (let page = 1; page <= maxPages; page++) {
+            const key = `wishlist:${userId}:${page}:10`;
+
+            deletePromises.push(this.cacheManager.del(key));
+        }
+        const countKey = `wishlist_count:${userId}`;
+        deletePromises.push(this.cacheManager.del(countKey));
+
+        await Promise.all(deletePromises);
+    }
+
+}   
