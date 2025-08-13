@@ -50,9 +50,6 @@ export class CreateUserDto {
     @MaxLength(255, { message: 'Facebook ID cannot be longer than 255 characters.' })
     facebookId?: string;
 
-    @IsOptional()
-    isEmailVerified?: boolean;
-
 
     @IsOptional()
     @IsEnum(UserRole, { message: 'Invalid user role.' })

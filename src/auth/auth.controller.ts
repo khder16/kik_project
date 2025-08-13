@@ -140,8 +140,8 @@ export class AuthController {
             const token = await this.authService.validateOAuthLogin(req.user, 'google', userType);
             res.cookie('access_token', token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict'
+                secure: false,
+                sameSite: 'none'
             });
             return res.redirect('/home');
         } catch (error) {

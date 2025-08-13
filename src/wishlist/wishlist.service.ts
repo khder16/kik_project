@@ -34,7 +34,7 @@ export class WishlistService {
                 this.wishlistModel.find({ user: userId })
                     .populate({
                         path: 'products',
-                        select: 'name_en name_ar name_no price images',
+                        select: '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt',
                         model: 'Product',
                     })
                     .skip(skip)
