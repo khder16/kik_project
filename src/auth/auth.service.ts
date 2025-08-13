@@ -391,6 +391,11 @@ export class AuthService {
       sameSite: 'none' as const,
       path: '/'
     };
+      //  httpOnly: true,
+      // secure: this.configService.get<string>('NODE_ENV') === 'production',
+      // maxAge: 24 * 60 * 60 * 1000,
+      // sameSite: 'strict' as const,
+      // path: '/'
     res.cookie('access_token', token, cookieOptions);
   }
 }
