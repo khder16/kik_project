@@ -13,9 +13,6 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { WishlistController } from './wishlist/wishlist.controller';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { NotificationModule } from './notification/notification.module';
-import { SystempagesController } from './systempages/systempages.controller';
-import { SystempagesService } from './systempages/systempages.service';
-import { SystempagesModule } from './systempages/systempages.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { OtpModule } from './otp/otp.module';
@@ -29,6 +26,9 @@ import { SellerModule } from './seller/seller.module';
 import { AdminModule } from './admin/admin.module';
 // import { PaymentService } from './payment/payment.service';
 // import { PaymentModule } from './payment/payment.module';
+import { ContactService } from './contact/contact.service';
+import { ContactController } from './contact/contact.controller';
+import { ContactModule } from './contact/contact.module';
 import * as redisStore from 'cache-manager-redis-store';
 
 
@@ -111,19 +111,20 @@ import * as redisStore from 'cache-manager-redis-store';
     // OrderModule,
     WishlistModule,
     NotificationModule,
-    SystempagesModule,
     OtpModule,
     ReviewsModule,
     AdminModule,
+    ContactModule,
     // PaymentModule
   ],
-  controllers: [AppController, WishlistController, SystempagesController],
-  providers: [AppService, SystempagesService, JwtService, ImageProcessingService,
+  controllers: [AppController, WishlistController, ContactController],
+  providers: [AppService, JwtService, ImageProcessingService,
     // Register ThrottlerGuard
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    ContactService,
     // PaymentService,
     // Register RolesGuard
     // {

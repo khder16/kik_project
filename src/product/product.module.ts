@@ -5,13 +5,16 @@ import { Product, ProductSchema } from './schemas/product.schema';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ImageProcessingService } from './image-process.service';
 import { ReviewsModule } from 'src/reviews/reviews.module';
-import { CacheModule } from '@nestjs/cache-manager';
-
+import { WishlistCommonModule } from 'src/wishlist/wishlist-common.module';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]), ReviewsModule],
+  imports: [
+    MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]),
+    WishlistCommonModule,
+    ReviewsModule
+  ],
   providers: [ProductService, ImageProcessingService],
   controllers: [ProductController],
   exports: [ProductService, MongooseModule, ImageProcessingService]
 })
-export class ProductModule { }
+export class ProductModule {}

@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { User } from './schemas/user.schema';
+import { User, UserRole } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto, UpdateUserInformationDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcryptjs';
@@ -17,6 +17,7 @@ import { CountryEnum } from 'src/auth/dto/signup.dto';
 import { CACHE_TTLS } from 'src/common/constant/cache.constants';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import { CreateAdminsDto } from 'src/admin/dto/create-admins.dto';
 
 @Injectable()
 export class UserService {
@@ -30,6 +31,21 @@ export class UserService {
   async create(userData: CreateUserDto): Promise<User> {
     try {
       const createdUser = new this.userModel(userData);
+      return await createdUser.save();
+    } catch (error) {
+      this.logger.error(`Error creating user: ${error.message}`, error.stack);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to create user due to an unexpected server error.'
+      );
+    }
+  }
+
+  async createAdmins(adminsDto: CreateAdminsDto): Promise<User> {
+    try {
+      const createdUser = new this.userModel(adminsDto);
       return await createdUser.save();
     } catch (error) {
       this.logger.error(`Error creating user: ${error.message}`, error.stack);
@@ -105,14 +121,14 @@ export class UserService {
   }
 
   async findAllUsers(
+    usersType: string,
     page: number,
     limit: number
   ): Promise<{ data: User[]; meta: any }> {
     try {
       const skip = (page - 1) * limit;
-      const cacheKey = `users:normal:${page}:${limit}`;
-      const cacheCountKey = `users_count:normal`;
-
+      const cacheKey = `users:${usersType}:${page}:${limit}`;
+      const cacheCountKey = `users_count:${usersType}`;
       // Try to get cached data
       const cached = await this.cacheManager.get<{
         data: User[];
@@ -124,17 +140,17 @@ export class UserService {
       // Queries
       const [users, totalCount] = await Promise.all([
         this.userModel
-          .find({ role: 'normal_user' })
+          .find({ role: usersType })
           .select('_id firstName lastName role email phoneNumber country')
           .skip(skip)
           .limit(limit)
           .lean()
           .exec(),
-        this.userModel.countDocuments({ role: 'normal_user' })
+        this.userModel.countDocuments({ role: usersType })
       ]);
 
       if (!users || users.length === 0) {
-        throw new NotFoundException('Users not found.');
+        throw new NotFoundException(`${usersType} not found.`);
       }
 
       const totalPages = Math.ceil(totalCount / limit);

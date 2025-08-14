@@ -19,6 +19,7 @@ import { LoginDto } from './dto/login.dto';
 import { User, UserRole } from 'src/user/schemas/user.schema';
 import { OtpService } from 'src/otp/otp.service';
 import { ChangePasswordDto } from './dto/changePassword.dto';
+import { CreateAdminsDto } from 'src/admin/dto/create-admins.dto';
 
 export interface JwtPayload {
   email: string;
@@ -295,6 +296,58 @@ export class AuthService {
     }
   }
 
+  async signUpAdmin(createAdminDto: CreateAdminsDto) {
+    const { email, phoneNumber, password } = createAdminDto;
+    if (email) {
+      const userByEmail = await this.userService.findByEmail(email);
+      if (userByEmail) {
+        throw new ConflictException('Email already exists');
+      }
+    }
+
+    if (phoneNumber) {
+      const userByPhone = await this.userService.findByPhoneNumber(phoneNumber);
+      if (userByPhone) {
+        throw new ConflictException('Phone number already exists');
+      }
+    }
+
+    try {
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const newUser = await this.userService.createAdmins({
+        ...createAdminDto,
+        password: hashedPassword,
+        googleId: null,
+        facebookId: null,
+        role: 'admin'
+      });
+
+      const adminInfo = {
+        id: newUser._id,
+        email: newUser.email,
+        phoneNumber: newUser.phoneNumber,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        role: newUser.role,
+        createdAt: newUser.createdAt
+      };
+
+      return { admin: adminInfo };
+    } catch (error) {
+      this.logger.error(
+        `Error during admin creation: ${error.message}`,
+        error.stack
+      );
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'An unexpected error occurred during admin sign up.'
+      );
+    }
+  }
+
   async setCountry(userId: string, country: CountryEnum, res: Response) {
     try {
       const user = await this.userService.findByIdAndUpdateCountry(
@@ -391,11 +444,11 @@ export class AuthService {
       sameSite: 'none' as const,
       path: '/'
     };
-      //  httpOnly: true,
-      // secure: this.configService.get<string>('NODE_ENV') === 'production',
-      // maxAge: 24 * 60 * 60 * 1000,
-      // sameSite: 'strict' as const,
-      // path: '/'
+    //  httpOnly: true,
+    // secure: this.configService.get<string>('NODE_ENV') === 'production',
+    // maxAge: 24 * 60 * 60 * 1000,
+    // sameSite: 'strict' as const,
+    // path: '/'
     res.cookie('access_token', token, cookieOptions);
   }
 }

@@ -5,7 +5,7 @@ export type WishlistDocument = Wishlist & Document;
 
 @Schema({ timestamps: true })
 export class Wishlist {
-    @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true, index: true })
+    @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
     user: Types.ObjectId; // One wishlist per user
 
     @Prop({ type: [{ type: Types.ObjectId, ref: 'Product' }], index: true, default: [] })

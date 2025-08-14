@@ -1,4 +1,13 @@
-import { BadRequestException, HttpException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  UnauthorizedException
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cart } from './schemas/cart.schema';
 import { Product } from 'src/product/schemas/product.schema';
@@ -9,378 +18,397 @@ import { CACHE_TTLS } from 'src/common/constant/cache.constants';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 
-
-
 @Injectable()
 export class CartService {
-    constructor(
-        @InjectModel(Cart.name) private readonly cartModel: Model<Cart>,
-        @InjectModel(Product.name) private readonly productModel: Model<Product>,
-        @Inject(CACHE_MANAGER) private cacheManager: Cache
-    ) { }
+  constructor(
+    @InjectModel(Cart.name) private readonly cartModel: Model<Cart>,
+    @InjectModel(Product.name) private readonly productModel: Model<Product>,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache
+  ) {}
 
-    private readonly logger = new Logger(CartService.name);
+  private readonly logger = new Logger(CartService.name);
 
+  async addToCart(userInfo: any, productId: string, quantity: number) {
+    const session = await this.cartModel.db.startSession();
+    session.startTransaction();
 
+    try {
+      let cart = await this.cartModel
+        .findOne({ user: userInfo._id })
+        .session(session)
+        .exec();
 
-    async addToCart(userInfo: any, productId: string, quantity: number) {
-        const session = await this.cartModel.db.startSession();
-        session.startTransaction();
+      if (!cart) {
+        cart = new this.cartModel({
+          user: userInfo._id,
+          items: [],
+          totalPrice: 0
+        });
+      }
 
-        try {
+      const product = await this.productModel
+        .findById(productId)
+        .populate({ path: 'store', select: '_id name email' });
+      if (!product) {
+        throw new NotFoundException('Product with this ID not found');
+      }
 
-            let cart = await this.cartModel.findOne({ user: userInfo._id }).session(session).exec();
+      if (userInfo.country !== product.country) {
+        throw new BadRequestException(
+          'This product is not available in your country'
+        );
+      }
 
-            if (!cart) {
-                cart = new this.cartModel({
-                    user: userInfo._id,
-                    items: [],
-                    totalPrice: 0,
-                });
-            }
+      if (product.stockQuantity < quantity) {
+        throw new BadRequestException('Insufficient stock available');
+      }
 
-            const product = await this.productModel.findById(productId).populate({ path: 'store', select: '_id name email' })
-            if (!product) {
-                throw new NotFoundException('Product with this ID not found')
-            }
+      const existingItemIndex = cart.items.findIndex(
+        (item) => item.product.toString() === productId
+      );
+      if (existingItemIndex > -1) {
+        cart.items[existingItemIndex].quantity += quantity;
+      } else {
+        cart.items.push({
+          product: product._id,
+          price: product.price,
+          quantity,
+          store: product._id
+        });
+      }
 
+      product.stockQuantity -= quantity;
+      await product.save({ session });
 
-            if (userInfo.country !== product.country) {
-                throw new BadRequestException('This product is not available in your country');
-            }
+      cart.totalPrice = cart.items.reduce((total: number, item) => {
+        return total + item.price * item.quantity;
+      }, 0);
 
+      await cart.save({ session });
+      await session.commitTransaction();
 
-            if (product.stockQuantity < quantity) {
-                throw new BadRequestException('Insufficient stock available');
-            }
+      await this.clearUserCartCache(userInfo._id);
 
-            const existingItemIndex = cart.items.findIndex(item => item.product.toString() === productId);
-            if (existingItemIndex > -1) {
-                cart.items[existingItemIndex].quantity += quantity;
-            } else {
-                cart.items.push({
-                    product: product._id,
-                    price: product.price,
-                    quantity,
-                    store: product._id
-                })
-            }
+      return cart;
+    } catch (error) {
+      await session.abortTransaction();
+      this.logger.error(
+        `Error add items to cart: ${error.message}`,
+        error.stack
+      );
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to add products to cart due to an unexpected server error.'
+      );
+    } finally {
+      session.endSession();
+    }
+  }
 
-            product.stockQuantity -= quantity;
-            await product.save({ session });
+  async getUserCart(
+    userId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{ data: Cart; meta: any }> {
+    try {
+      const skip = (page - 1) * limit;
+      const cacheKey = `cart:${userId}:${page}:${limit}`;
+      const cacheCountKey = `cart_count:${userId}`;
 
+      const cached = await this.cacheManager.get<{
+        data: Cart;
+        meta: any;
+      }>(cacheKey);
 
-            cart.totalPrice = cart.items.reduce((total: number, item) => {
-                return total + (item.price * item.quantity);
-            }, 0);
+      if (cached) return cached;
 
-            await cart.save({ session })
-            await session.commitTransaction();
+      let cart = await this.cartModel
+        .findOne({ user: userId })
+        .populate({
+          path: 'items.product',
+          select: '_id name_en name_ar name_no price images store category',
+          options: { skip, limit }
+        })
+        .lean()
+        .exec();
 
-            await this.clearUserCartCache(userInfo._id);
+      if (!cart) {
+        cart = await this.cartModel.create({
+          user: userId,
+          items: [],
+          totalPrice: 0
+        });
+      }
+      const totalItems = await this.cartModel.aggregate([
+        { $match: { user: userId } },
+        { $project: { count: { $size: '$items' } } }
+      ]);
+      const totalCount = totalItems[0]?.count || 0;
+      const totalPages = Math.ceil(totalCount / limit);
+      const hasNextPage = page < totalPages;
+      const hasPreviousPage = page > 1;
 
-            return cart;
-        } catch (error) {
-            await session.abortTransaction();
-            this.logger.error(`Error add items to cart: ${error.message}`, error.stack);
-            if (error instanceof HttpException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Failed to add products to cart due to an unexpected server error.');
-        } finally {
-            session.endSession();
+      const response = {
+        data: cart,
+        meta: {
+          currentPage: page,
+          itemsPerPage: limit,
+          totalItems: totalCount,
+          totalPages,
+          hasNextPage,
+          hasPreviousPage
         }
+      };
+      await Promise.all([
+        this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART),
+        this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.CART)
+      ]);
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `Error getting user cart: ${error.message}`,
+        error.stack
+      );
+      throw new InternalServerErrorException('Failed to get user cart');
+    }
+  }
+
+  // Remove item from cart
+  async removeFromCart(
+    userId: string,
+    productId: string,
+    page: number,
+    limit: number
+  ): Promise<Cart> {
+    const session = await this.cartModel.db.startSession();
+
+    try {
+      session.startTransaction();
+
+      const cart = await this.cartModel
+        .findOne({ user: userId })
+        .session(session);
+      if (!cart) {
+        throw new NotFoundException('Cart not found');
+      }
+
+      const itemIndex = cart.items.findIndex(
+        (item) => item.product.toString() === productId
+      );
+
+      if (itemIndex === -1) {
+        throw new NotFoundException('Item not found in cart');
+      }
+
+      const product = await this.productModel
+        .findById(productId)
+        .session(session);
+      if (!product) {
+        throw new NotFoundException('Product not found');
+      }
+
+      // Restore product stock
+      product.stockQuantity += cart.items[itemIndex].quantity;
+      await product.save({ session });
+
+      // Store price before removing item for accurate total calculation
+      const removedItemPrice = cart.items[itemIndex].price;
+      const removedItemQuantity = cart.items[itemIndex].quantity;
+
+      // Remove item from cart
+      cart.items.splice(itemIndex, 1);
+
+      // Recalculate total - using stored prices from remaining items
+      cart.totalPrice = cart.items.reduce((total: number, item) => {
+        return total + item.price * item.quantity;
+      }, 0);
+
+      await cart.save({ session });
+      await session.commitTransaction();
+
+      await this.clearUserCartCache(userId);
+
+      // Return populated cart after transaction
+      return await this.cartModel.findById(cart._id).populate('items.product');
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      this.logger.error(
+        `Error removing item from cart: ${error.message}`,
+        error.stack
+      );
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to remove item from cart');
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async updateCartItem(
+    userId: string,
+    productId: string,
+    newQuantity: number,
+    page: number,
+    limit: number
+  ): Promise<{ data: Cart; meta: any }> {
+    if (newQuantity <= 0) {
+      this.removeFromCart(userId, productId, page, limit);
+      return this.getUserCart(userId, page, limit);
     }
 
+    const session = await this.cartModel.db.startSession();
 
+    try {
+      session.startTransaction();
 
+      const cart = await this.cartModel
+        .findOne({ user: userId })
+        .session(session);
+      if (!cart) {
+        throw new NotFoundException('Cart not found');
+      }
 
-    async getUserCart(userId: string, page: number = 1, limit: number = 10): Promise<{ data: Cart; meta: any }> {
-        try {
-            const skip = (page - 1) * limit
-            const cacheKey = `cart:${userId}:${page}:${limit}`;
-            const cacheCountKey = `cart_count:${userId}`;
+      const itemIndex = cart.items.findIndex(
+        (item) => item.product.toString() === productId
+      );
 
-            const cached = await this.cacheManager.get<{
-                data: Cart;
-                meta: any;
-            }>(cacheKey);
+      if (itemIndex === -1) {
+        throw new NotFoundException('Item not found in cart');
+      }
 
-            if (cached) return cached;
+      const product = await this.productModel
+        .findById(productId)
+        .session(session);
+      if (!product) {
+        throw new NotFoundException('Product not found');
+      }
 
-            let cart = await this.cartModel.findOne({ user: userId })
-                .populate({
-                    path: 'items.product',
-                    select: '_id name_en name_ar name_no price images store category',
-                    options: { skip, limit }
-                })
-                .lean()
-                .exec();
+      const quantityDifference = newQuantity - cart.items[itemIndex].quantity;
 
-            if (!cart) {
-                cart = await this.cartModel.create({
-                    user: userId,
-                    items: [],
-                    totalPrice: 0,
-                });
+      if (product.stockQuantity < quantityDifference) {
+        throw new BadRequestException('Insufficient stock available');
+      }
+
+      // Update product stock
+      product.stockQuantity -= quantityDifference;
+      await product.save({ session });
+
+      // Update cart item quantity
+      cart.items[itemIndex].quantity = newQuantity;
+
+      // Recalculate total using stored price
+      cart.totalPrice = cart.items.reduce((total: number, item) => {
+        return total + item.price * item.quantity;
+      }, 0);
+
+      await cart.save({ session });
+      await session.commitTransaction();
+
+      await this.clearUserCartCache(userId);
+
+      return await this.getUserCart(userId, page, limit);
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      this.logger.error(
+        `Error updating cart item: ${error.message}`,
+        error.stack
+      );
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to update cart item');
+    } finally {
+      session.endSession();
+    }
+  }
+
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async cleanupExpiredCarts() {
+    const session = await this.cartModel.db.startSession();
+    try {
+      session.startTransaction();
+
+      const now = new Date();
+      const expiredCarts = await this.cartModel
+        .find({ expiresAt: { $lte: now } })
+        .limit(500)
+        .session(session);
+
+      this.logger.log(`Found ${expiredCarts.length} expired carts to process`);
+
+      const productBulkOps = [];
+      const cartBulkOps = [];
+
+      for (const cart of expiredCarts) {
+        for (const item of cart.items) {
+          productBulkOps.push({
+            updateOne: {
+              filter: { _id: item.product },
+              update: { $inc: { stockQuantity: item.quantity } },
+              session
             }
-            const totalItems = await this.cartModel.aggregate([
-                { $match: { user: userId } },
-                { $project: { count: { $size: "$items" } } }
-            ]);
-            const itemCount = totalItems[0]?.count || 0;
-            const totalPages = Math.ceil(itemCount / limit);
-            const hasNextPage = page < totalPages;
-            const hasPreviousPage = page > 1;
-
-            const response = {
-                data: cart,
-                meta: {
-                    currentPage: page,
-                    itemsPerPage: limit,
-                    totalItems: itemCount,
-                    totalPages,
-                    hasNextPage,
-                    hasPreviousPage
-                }
-            };
-            await Promise.all([
-                this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART),
-                this.cacheManager.set(cacheCountKey, itemCount, CACHE_TTLS.CART)
-            ]);
-
-            return response;
-        } catch (error) {
-            this.logger.error(`Error getting user cart: ${error.message}`, error.stack);
-            throw new InternalServerErrorException('Failed to get user cart');
+          });
         }
+
+        // Mark cart for deletion
+        cartBulkOps.push({
+          deleteOne: {
+            filter: { _id: cart._id },
+            session
+          }
+        });
+      }
+
+      if (productBulkOps.length > 0) {
+        await this.productModel.bulkWrite(productBulkOps);
+        this.logger.log(
+          `Restored stock for ${productBulkOps.length} product items`
+        );
+      }
+
+      if (cartBulkOps.length > 0) {
+        await this.cartModel.bulkWrite(cartBulkOps);
+        this.logger.log(`Removed ${cartBulkOps.length} expired carts`);
+      }
+
+      await session.commitTransaction();
+      this.logger.log('Successfully completed cart cleanup');
+    } catch (error) {
+      await session.abortTransaction();
+      this.logger.error('Failed to cleanup expired carts', error.stack);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to cleanup carts due to an unexpected server error.'
+      );
+    } finally {
+      session.endSession();
+    }
+  }
+
+  private async clearUserCartCache(userId: string) {
+    // Delete all paginated cache versions
+    const maxExpectedPages = 5;
+    const deletePromises = [];
+
+    for (let page = 1; page <= maxExpectedPages; page++) {
+      deletePromises.push(
+        this.cacheManager.del(`cart:${userId}:${page}:10`) // Assuming limit=10
+      );
     }
 
+    // Delete the count cache
+    deletePromises.push(this.cacheManager.del(`cart_count:${userId}`));
 
-    // Remove item from cart
-    async removeFromCart(userId: string, productId: string, page: number, limit: number): Promise<Cart> {
-        const session = await this.cartModel.db.startSession();
-
-        try {
-            session.startTransaction();
-
-            const cart = await this.cartModel.findOne({ user: userId }).session(session);
-            if (!cart) {
-                throw new NotFoundException('Cart not found');
-            }
-
-            const itemIndex = cart.items.findIndex(
-                item => item.product.toString() === productId
-            );
-
-            if (itemIndex === -1) {
-                throw new NotFoundException('Item not found in cart');
-            }
-
-            const product = await this.productModel.findById(productId).session(session);
-            if (!product) {
-                throw new NotFoundException('Product not found');
-            }
-
-            // Restore product stock
-            product.stockQuantity += cart.items[itemIndex].quantity;
-            await product.save({ session });
-
-            // Store price before removing item for accurate total calculation
-            const removedItemPrice = cart.items[itemIndex].price;
-            const removedItemQuantity = cart.items[itemIndex].quantity;
-
-            // Remove item from cart
-            cart.items.splice(itemIndex, 1);
-
-            // Recalculate total - using stored prices from remaining items
-            cart.totalPrice = cart.items.reduce((total: number, item) => {
-                return total + (item.price * item.quantity);
-            }, 0);
-
-            await cart.save({ session });
-            await session.commitTransaction();
-
-            await this.clearUserCartCache(userId);
-
-
-            // Return populated cart after transaction
-            return await this.cartModel.findById(cart._id).populate('items.product');
-        } catch (error) {
-            if (session.inTransaction()) {
-                await session.abortTransaction();
-            }
-            this.logger.error(`Error removing item from cart: ${error.message}`, error.stack);
-            if (error instanceof HttpException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Failed to remove item from cart');
-        } finally {
-            session.endSession();
-        }
-    }
-
-
-
-
-    async updateCartItem(
-        userId: string,
-        productId: string,
-        newQuantity: number,
-        page: number,
-        limit: number
-    ): Promise<{ data: Cart; meta: any }> {
-        if (newQuantity <= 0) {
-            this.removeFromCart(userId, productId, page, limit);
-            return this.getUserCart(userId, page, limit);
-        }
-
-        const session = await this.cartModel.db.startSession();
-
-        try {
-            session.startTransaction();
-
-            const cart = await this.cartModel.findOne({ user: userId }).session(session);
-            if (!cart) {
-                throw new NotFoundException('Cart not found');
-            }
-
-            const itemIndex = cart.items.findIndex(
-                item => item.product.toString() === productId
-            );
-
-            if (itemIndex === -1) {
-                throw new NotFoundException('Item not found in cart');
-            }
-
-            const product = await this.productModel.findById(productId).session(session);
-            if (!product) {
-                throw new NotFoundException('Product not found');
-            }
-
-            const quantityDifference = newQuantity - cart.items[itemIndex].quantity;
-
-            if (product.stockQuantity < quantityDifference) {
-                throw new BadRequestException('Insufficient stock available');
-            }
-
-            // Update product stock
-            product.stockQuantity -= quantityDifference;
-            await product.save({ session });
-
-            // Update cart item quantity
-            cart.items[itemIndex].quantity = newQuantity;
-
-            // Recalculate total using stored price
-            cart.totalPrice = cart.items.reduce((total: number, item) => {
-                return total + (item.price * item.quantity);
-            }, 0);
-
-            await cart.save({ session });
-            await session.commitTransaction();
-
-            await this.clearUserCartCache(userId);
-
-            return await this.getUserCart(userId, page, limit);
-        } catch (error) {
-            if (session.inTransaction()) {
-                await session.abortTransaction();
-            }
-            this.logger.error(`Error updating cart item: ${error.message}`, error.stack);
-            if (error instanceof HttpException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Failed to update cart item');
-        } finally {
-            session.endSession();
-        }
-    }
-
-
-
-
-
-
-
-    @Cron(CronExpression.EVERY_30_MINUTES)
-    async cleanupExpiredCarts() {
-
-        const session = await this.cartModel.db.startSession();
-        try {
-            session.startTransaction();
-
-            const now = new Date();
-            const expiredCarts = await this.cartModel.find({ expiresAt: { $lte: now } }).limit(500).session(session);;
-
-            this.logger.log(`Found ${expiredCarts.length} expired carts to process`);
-
-
-            const productBulkOps = [];
-            const cartBulkOps = [];
-
-
-            for (const cart of expiredCarts) {
-                for (const item of cart.items) {
-                    productBulkOps.push({
-                        updateOne: {
-                            filter: { _id: item.product },
-                            update: { $inc: { stockQuantity: item.quantity } },
-                            session,
-                        },
-                    });
-                }
-
-                // Mark cart for deletion
-                cartBulkOps.push({
-                    deleteOne: {
-                        filter: { _id: cart._id },
-                        session,
-                    },
-                });
-            }
-
-            if (productBulkOps.length > 0) {
-                await this.productModel.bulkWrite(productBulkOps);
-                this.logger.log(`Restored stock for ${productBulkOps.length} product items`);
-            }
-
-            if (cartBulkOps.length > 0) {
-                await this.cartModel.bulkWrite(cartBulkOps);
-                this.logger.log(`Removed ${cartBulkOps.length} expired carts`);
-            }
-
-            await session.commitTransaction();
-            this.logger.log('Successfully completed cart cleanup');
-
-        } catch (error) {
-            await session.abortTransaction();
-            this.logger.error('Failed to cleanup expired carts', error.stack);
-            if (error instanceof HttpException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Failed to cleanup carts due to an unexpected server error.');
-        } finally {
-            session.endSession();
-        }
-    }
-
-
-
-
-    private async clearUserCartCache(userId: string) {
-        // Delete all paginated cache versions
-        const maxExpectedPages = 5;
-        const deletePromises = [];
-
-        for (let page = 1; page <= maxExpectedPages; page++) {
-            deletePromises.push(
-                this.cacheManager.del(`cart:${userId}:${page}:10`) // Assuming limit=10
-            );
-        }
-
-        // Delete the count cache
-        deletePromises.push(this.cacheManager.del(`cart_count:${userId}`));
-
-        await Promise.all(deletePromises);
-    }
+    await Promise.all(deletePromises);
+  }
 }

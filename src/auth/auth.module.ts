@@ -26,6 +26,7 @@ import { OtpModule } from 'src/otp/otp.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, GoogleStrategy, JwtStrategy]
+  providers: [AuthService, GoogleStrategy, JwtStrategy],
+  exports:[AuthService]
 })
 export class AuthModule { }
