@@ -49,7 +49,7 @@ export class User extends Document {
     createdAt: Date;
 
     @Prop({ type: Types.ObjectId, ref: 'Store', index: true })
-    store?: Types.ObjectId;
+    store: Types.ObjectId[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -37,21 +37,14 @@ export class StoreService {
     imagePath?: string
   ): Promise<Store> {
     try {
-      const IsThereStoreWithSmaeOwner = await this.storeModel.findOne({
-        owner: ownerId
-      });
-      if (IsThereStoreWithSmaeOwner) {
-        throw new ConflictException('You already have store');
-      }
       // Check for existing store with the same name
       const storeWithSameName = await this.storeModel.findOne({
         name: storeData.name
       });
+
       if (storeWithSameName) {
         throw new ConflictException('Store name already exists');
       }
-
-      // Check for existing store with the same email if email is provided
       if (storeData.email) {
         const storeWithSameEmail = await this.storeModel.findOne({
           email: storeData.email
@@ -61,33 +54,6 @@ export class StoreService {
         }
       }
 
-      // Check social media handles sequentially
-      if (storeData.facebook) {
-        const storeWithSameFacebook = await this.storeModel.findOne({
-          facebook: storeData.facebook
-        });
-        if (storeWithSameFacebook) {
-          throw new ConflictException('Facebook handle already in use');
-        }
-      }
-
-      if (storeData.instagram) {
-        const storeWithSameInstagram = await this.storeModel.findOne({
-          instagram: storeData.instagram
-        });
-        if (storeWithSameInstagram) {
-          throw new ConflictException('Instagram handle already in use');
-        }
-      }
-
-      if (storeData.whatsApp) {
-        const storeWithSameWhatsApp = await this.storeModel.findOne({
-          whatsApp: storeData.whatsApp
-        });
-        if (storeWithSameWhatsApp) {
-          throw new ConflictException('WhatsApp number already in use');
-        }
-      }
       const newStore = {
         ...storeData,
         owner: ownerId,
@@ -179,14 +145,14 @@ export class StoreService {
       // Rest of the deletion logic
       await this.productModel
         .deleteMany({ store: storeObjectId }, { session })
-        .exec(); 
+        .exec();
 
       await this.storeModel
         .deleteOne({ _id: storeObjectId }, { session })
         .exec();
 
       await session.commitTransaction();
-    
+
       return { message: 'Store and all related products deleted successfully' };
     } catch (error) {
       await session.abortTransaction();
@@ -206,10 +172,8 @@ export class StoreService {
       const skip = (page - 1) * limit;
       if (limit > 50) throw new BadRequestException('Maximum limit is 50');
 
-
       // Queries
       const query: any = {};
-  
 
       const [stores, totalCount] = await Promise.all([
         this.storeModel.find(query).skip(skip).limit(limit).lean().exec(),
