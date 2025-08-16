@@ -206,19 +206,10 @@ export class StoreService {
       const skip = (page - 1) * limit;
       if (limit > 50) throw new BadRequestException('Maximum limit is 50');
 
-      const cacheKey = `stores:${country || 'all'}:${category || 'all'}:${page}:${limit}`;
-      const cacheCountKey = `stores_count:${country || 'all'}:${category || 'all'}`;
-      const cached = await this.cacheManager.get<{
-        data: Store[];
-        meta: any;
-      }>(cacheKey);
-
-      if (cached) return cached;
 
       // Queries
       const query: any = {};
-      if (category) query.category = category;
-      if (country) query.country = country;
+  
 
       const [stores, totalCount] = await Promise.all([
         this.storeModel.find(query).skip(skip).limit(limit).lean().exec(),
@@ -240,11 +231,6 @@ export class StoreService {
           hasPreviousPage
         }
       };
-
-      await Promise.all([
-        this.cacheManager.set(cacheKey, response, CACHE_TTLS.PRODUCTS),
-        this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.PRODUCTS)
-      ]);
 
       return response;
     } catch (error) {

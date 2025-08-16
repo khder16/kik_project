@@ -18,6 +18,7 @@ import { CACHE_TTLS } from 'src/common/constant/cache.constants';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { CreateAdminsDto } from 'src/admin/dto/create-admins.dto';
+import { Redis } from 'ioredis';
 
 @Injectable()
 export class UserService {
@@ -27,7 +28,6 @@ export class UserService {
   ) {}
 
   private readonly logger = new Logger(UserService.name);
-
   async create(userData: CreateUserDto): Promise<User> {
     try {
       const createdUser = new this.userModel(userData);
@@ -127,15 +127,7 @@ export class UserService {
   ): Promise<{ data: User[]; meta: any }> {
     try {
       const skip = (page - 1) * limit;
-      const cacheKey = `users:${usersType}:${page}:${limit}`;
-      const cacheCountKey = `users_count:${usersType}`;
-      // Try to get cached data
-      const cached = await this.cacheManager.get<{
-        data: User[];
-        meta: any;
-      }>(cacheKey);
-
-      if (cached) return cached;
+     
 
       // Queries
       const [users, totalCount] = await Promise.all([
@@ -168,12 +160,6 @@ export class UserService {
           hasPreviousPage
         }
       };
-
-      // Cache results
-      await Promise.all([
-        this.cacheManager.set(cacheKey, response, CACHE_TTLS.PRODUCTS),
-        this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.PRODUCTS)
-      ]);
 
       return response;
     } catch (error) {
@@ -353,7 +339,11 @@ export class UserService {
       throw new BadRequestException('Invalid user ID format.');
     }
     try {
-      const deletedUser = await this.userModel.findByIdAndDelete(id).exec();
+      const deletedUser = await this.userModel
+        .findByIdAndDelete(id)
+        .select('_id firstName lastName role email phoneNumber country')
+        .exec();
+
       if (!deletedUser) {
         throw new NotFoundException('User not found.');
       }
@@ -441,8 +431,14 @@ export class UserService {
     }
   }
 
-  async findAll() {
-    const users = await this.userModel.find({});
-    return users;
+  private async clearUserCache(
+    role: string,
+    page: number,
+    limit: number
+  ): Promise<void> {
+    const cacheKey = `users:${role}:${page}:${limit}`;
+    const cacheCountKey = `users_count:${role}`;
+    await this.cacheManager.del(cacheKey);
+    await this.cacheManager.del(cacheCountKey);
   }
 }

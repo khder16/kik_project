@@ -32,8 +32,6 @@ export class Cart {
   @Prop({ type: Number, default: 0, min: 0 })
   totalPrice: number;
 
-  @Prop({ type: Date, default: () => new Date(Date.now() + 2 * 60 * 60 * 1000), index: { expires: '2h' } })
-  expiresAt: Date;
 }
 
 export const CartSchema = SchemaFactory.createForClass(Cart);

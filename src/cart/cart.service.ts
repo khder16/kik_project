@@ -12,7 +12,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cart } from './schemas/cart.schema';
 import { Product } from 'src/product/schemas/product.schema';
 import { Model, Types } from 'mongoose';
-import { ProductService } from 'src/product/product.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CACHE_TTLS } from 'src/common/constant/cache.constants';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -37,6 +36,12 @@ export class CartService {
         .findOne({ user: userInfo._id })
         .session(session)
         .exec();
+
+      if (cart.items.length >= 100) {
+        throw new BadRequestException(
+          'Cart is full you can not add more than 100 items to your cart'
+        );
+      }
 
       if (!cart) {
         cart = new this.cartModel({
@@ -85,11 +90,8 @@ export class CartService {
       }, 0);
 
       await cart.save({ session });
-      await session.commitTransaction();
-
-      await this.clearUserCartCache(userInfo._id);
-
-      return cart;
+    
+      return {message: "Product Added to cart"};
     } catch (error) {
       await session.abortTransaction();
       this.logger.error(
@@ -160,9 +162,8 @@ export class CartService {
           hasPreviousPage
         }
       };
-    
-        await  this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART);
 
+      await this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART);
 
       return response;
     } catch (error) {
@@ -227,7 +228,7 @@ export class CartService {
       await cart.save({ session });
       await session.commitTransaction();
 
-      await this.clearUserCartCache(userId);
+      await this.cacheManager.del(`cart:${userId}:${page}:${limit}`);
 
       // Return populated cart after transaction
       return await this.cartModel.findById(cart._id).populate('items.product');
@@ -308,7 +309,7 @@ export class CartService {
       await cart.save({ session });
       await session.commitTransaction();
 
-      await this.clearUserCartCache(userId);
+      await this.cacheManager.del(`cart:${userId}:${page}:${limit}`);
 
       return await this.getUserCart(userId, page, limit);
     } catch (error) {
@@ -391,22 +392,5 @@ export class CartService {
     } finally {
       session.endSession();
     }
-  }
-
-  private async clearUserCartCache(userId: string) {
-    // Delete all paginated cache versions
-    const maxExpectedPages = 5;
-    const deletePromises = [];
-
-    for (let page = 1; page <= maxExpectedPages; page++) {
-      deletePromises.push(
-        this.cacheManager.del(`cart:${userId}:${page}:10`) // Assuming limit=10
-      );
-    }
-
-    // Delete the count cache
-    deletePromises.push(this.cacheManager.del(`cart_count:${userId}`));
-
-    await Promise.all(deletePromises);
   }
 }
