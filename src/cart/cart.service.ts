@@ -89,6 +89,7 @@ export class CartService {
         return total + item.price * item.quantity;
       }, 0);
 
+      
       await cart.save({ session });
     
       return {message: "Product Added to cart"};

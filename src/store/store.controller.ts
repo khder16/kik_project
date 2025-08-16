@@ -58,7 +58,7 @@ export class StoreController {
         }
         const ownerId = user._id
 
-        // await this.validateStoreLimit(ownerId);
+        await this.validateStoreLimit(ownerId);
 
         let imagePath: string | undefined;
         if (image) {
@@ -188,10 +188,10 @@ export class StoreController {
         if (!images?.length) throw new BadRequestException('At least one product image is required.');
     }
 
-    // private validateStoreLimit = async (ownerId: string) => {
-    //     const stores = await this.storeService.getStoresByOwnerId(ownerId)
-    //     if (stores.length >= 1) {
-    //         throw new ConflictException('User cannot have more than 1 store.');
-    //     }
-    // }
+    private validateStoreLimit = async (ownerId: string) => {
+        const stores = await this.storeService.getStoresByOwnerId(ownerId)
+        if (stores.length >= 1) {
+            throw new ConflictException('User cannot have more than 1 store.');
+        }
+    }
 }
