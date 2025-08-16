@@ -9,19 +9,15 @@ import { AllExceptionsFilter } from './common/filters/exceptions.filter';
 import { WinstonLogger } from './common/logger/winston.logger';
 import { doubleCsrf } from 'csrf-csrf';
 import { join } from 'path';
-import * as express from 'express'
+import * as express from 'express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-
-
-
+import { SanitizeMongoMiddleware } from './common/middleware/express-mongo-sanitize ';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    logger: new WinstonLogger('AppBootstrap'),
+    logger: new WinstonLogger('AppBootstrap')
   });
   const configService = app.get(ConfigService);
-
-
 
   const config = new DocumentBuilder()
     .setTitle('KiK E-Commerce')
@@ -31,7 +27,6 @@ async function bootstrap() {
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
 
-
   // Static Folder For Images
   app.use('/public', express.static(join(process.cwd(), 'public')));
 
@@ -40,15 +35,16 @@ async function bootstrap() {
   app.enableCors({
     origin: configService.get<string>('CORS_ORIGIN').split(','),
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true,
+    credentials: true
   });
 
+  app.use(new SanitizeMongoMiddleware().use);
 
   // CSRF Protection
   // const {
-  //   // invalidCsrfTokenError, 
-  //   // generateToken,       
-  //   // validateRequest,     
+  //   // invalidCsrfTokenError,
+  //   // generateToken,
+  //   // validateRequest,
   //   doubleCsrfProtection
   // } = doubleCsrf({
   //   get
@@ -65,7 +61,6 @@ async function bootstrap() {
 
   // app.use(doubleCsrfProtection);
 
-
   app.use(compression()); // Gzip compression for responses
 
   // Cookies
@@ -74,27 +69,23 @@ async function bootstrap() {
   // Prefix all routes with /api/v1
   app.setGlobalPrefix('api/v1');
 
-
   // Global Pipes for DTO validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-    transformOptions: {
-      enableImplicitConversion: true
-    }
-  }));
-
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true
+      }
+    })
+  );
 
   // GarceFul ShutDown
   app.enableShutdownHooks();
 
   const httpAdapter = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
-
-
-
-
 
   const port = configService.get<number>('PORT');
   await app.listen(port);

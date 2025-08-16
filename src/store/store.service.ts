@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { Store } from './schemas/store.schema';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { UpdateStoreDto } from './dto/updateStore.dto';
 import { unlink, rm } from 'fs/promises';
@@ -157,7 +157,14 @@ export class StoreService {
     const session = await this.storeModel.startSession();
     session.startTransaction();
     try {
-      const store = await this.storeModel.findById(storeId).session(session);
+      const storeObjectId = new Types.ObjectId(storeId);
+
+      const store = await this.storeModel
+        .findById(storeId)
+        .select('owner')
+        .lean()
+        .session(session);
+
       if (!store) {
         throw new NotFoundException('Store not found');
       }
@@ -169,16 +176,17 @@ export class StoreService {
         );
       }
 
-      // Rest of the deletion logic (same for both cases)
-      const products = await this.productModel
-        .find({ store: storeId })
-        .session(session);
-      const storeImagePath = join(process.cwd(), 'public', 'images', storeId);
-      await this.deleteStoreFolder(storeImagePath);
-      await this.productModel.deleteMany({ store: storeId }).session(session);
-      await this.storeModel.deleteOne({ _id: storeId }).session(session);
+      // Rest of the deletion logic
+      await this.productModel
+        .deleteMany({ store: storeObjectId }, { session })
+        .exec(); 
+
+      await this.storeModel
+        .deleteOne({ _id: storeObjectId }, { session })
+        .exec();
 
       await session.commitTransaction();
+    
       return { message: 'Store and all related products deleted successfully' };
     } catch (error) {
       await session.abortTransaction();
@@ -216,7 +224,7 @@ export class StoreService {
         this.storeModel.find(query).skip(skip).limit(limit).lean().exec(),
         this.storeModel.countDocuments(query)
       ]);
-      
+
       const totalPages = Math.ceil(totalCount / limit);
       const hasNextPage = page < totalPages;
       const hasPreviousPage = page > 1;

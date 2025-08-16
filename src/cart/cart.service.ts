@@ -115,7 +115,6 @@ export class CartService {
     try {
       const skip = (page - 1) * limit;
       const cacheKey = `cart:${userId}:${page}:${limit}`;
-      const cacheCountKey = `cart_count:${userId}`;
 
       const cached = await this.cacheManager.get<{
         data: Cart;
@@ -161,10 +160,9 @@ export class CartService {
           hasPreviousPage
         }
       };
-      await Promise.all([
-        this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART),
-        this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.CART)
-      ]);
+    
+        await  this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART);
+
 
       return response;
     } catch (error) {

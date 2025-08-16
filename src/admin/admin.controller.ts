@@ -142,7 +142,7 @@ export class AdminController {
     @Param('storeId') storeId: string,
     @UserDecorator('_id') adminId: string
   ) {
-    await this.storeService.deleteStore(storeId, undefined, true);
+    return await this.storeService.deleteStore(storeId, undefined, true);
   }
 
   // ========================

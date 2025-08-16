@@ -144,37 +144,68 @@ export class ProductService {
     }
   }
 
-  async getProductsByStoreId(storeId: any, page: number, limit: number) {
+  async getProductsByStoreId(
+    storeId: any,
+    page: number,
+    limit: number,
+    userId?: string
+  ) {
     try {
       const skip = (page - 1) * limit;
       if (limit > 50) throw new BadRequestException('Maximum limit is 50');
       const cacheKey = `products:${storeId}:page${page}:limit${limit}`;
+
+      // Get wishlist IDs (empty array if no user)
+      const wishlistProductIds = userId
+        ? await this.wishlistService.getWishlistItemsByUserId(userId)
+        : [];
+
+      // 3. Try Cache
       const cached = await this.cacheManager.get<{
         products: Product[];
-        total: number;
+        totalCount: number;
       }>(cacheKey);
 
-      if (cached) return cached;
+      let products = [];
+      let totalCount: number = 0;
+      if (cached) {
+        products = cached.products;
+        totalCount = cached.totalCount;
+      } else {
+        [products, totalCount] = await Promise.all([
+          this.productModel
+            .find({ store: storeId })
+            .select(
+              '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt'
+            )
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .exec(),
+          this.productModel.countDocuments({ store: storeId })
+        ]);
 
-      const [products, totalCount] = await Promise.all([
-        this.productModel
-          .find({ store: storeId })
-          .select(
-            '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt'
-          )
-          .skip(skip)
-          .limit(limit)
-          .lean()
-          .exec(),
-        this.productModel.countDocuments({ store: storeId })
-      ]);
+        // Caching the result
+        await this.cacheManager.set(
+          cacheKey,
+          { products, totalCount },
+          CACHE_TTLS.PRODUCTS
+        );
+      }
 
       const totalPages = Math.ceil(totalCount / limit);
       const hasNextPage = page < totalPages;
       const hasPreviousPage = page > 1;
 
-      const result = {
-        data: products,
+      const productsWithStatus = this.addWishlistStatus(
+        products,
+        wishlistProductIds
+      );
+
+      const response = {
+        data: {
+          productsWithStatus
+        },
         meta: {
           currentPage: page,
           itemsPerPage: limit,
@@ -184,11 +215,7 @@ export class ProductService {
           hasPreviousPage
         }
       };
-
-      // Caching the result
-      await this.cacheManager.set(cacheKey, result, CACHE_TTLS.PRODUCTS);
-
-      return result;
+      return response;
     } catch (error) {
       this.logger.error(`Error get products: ${error.message}`, error.stack);
       if (error instanceof HttpException) {
@@ -200,81 +227,92 @@ export class ProductService {
     }
   }
 
-
-
   async filteredProducts(
     filterQueryDto: ProductFilterandSearchDto,
-    userId: string
+    userId?: string
   ) {
     try {
       const { country, category, minPrice, maxPrice, page, limit } =
         filterQueryDto;
       const cacheKey = `products:${country}:${category}:${minPrice}:${maxPrice}:${page}:${limit}`;
-      const cacheCountKey = `products_count:${country}:${category}:${minPrice}:${maxPrice}`;
-      const cached = await this.cacheManager.get<{
-        data: Product[];
-        meta: any;
-      }>(cacheKey);
 
-      if (!userId) {
-       
-      }
+      // Validation
       if (limit > 50) throw new BadRequestException('Maximum limit is 50');
 
+      // Get wishlist IDs (empty array if no user)
+      const wishlistProductIds = userId
+        ? await this.wishlistService.getWishlistItemsByUserId(userId)
+        : [];
+
+      // 3. Try Cache
+      const cached = await this.cacheManager.get<{
+        products: Product[];
+        totalCount: number;
+      }>(cacheKey);
+
+      let products = [];
+      let totalCount: number = 0;
+
       if (cached) {
-        return cached;
+        products = cached.products;
+        totalCount = cached.totalCount;
+      } else {
+        const skip = (page - 1) * limit;
+        const query: any = {};
+
+        if (category) {
+          query.category = category;
+        }
+
+        if (country) {
+          query.country = country;
+        }
+
+        if (minPrice !== undefined && minPrice !== null && !isNaN(minPrice)) {
+          query.price = { ...query.price, $gte: minPrice };
+        }
+        if (maxPrice !== undefined && maxPrice !== null && !isNaN(maxPrice)) {
+          query.price = { ...query.price, $lte: maxPrice };
+        }
+
+        [products, totalCount] = await Promise.all([
+          this.productModel
+            .find(query)
+            .populate({
+              path: 'store',
+              select: '_id owner name country'
+            })
+            .select(
+              '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt'
+            )
+            .skip(skip)
+            .limit(limit)
+            .sort({ createdAt: -1 })
+            .lean()
+            .exec(),
+          this.productModel.countDocuments(query)
+        ]);
+        await this.cacheManager.set(
+          cacheKey,
+          { products, totalCount },
+          CACHE_TTLS.PRODUCTS
+        );
       }
-
-      const skip = (page - 1) * limit;
-
-      const query: any = {};
-
-      if (category) {
-        query.category = category;
-      }
-
-      if (country) {
-        query.country = country;
-      }
-
-      if (minPrice !== undefined && minPrice !== null && !isNaN(minPrice)) {
-        query.price = { ...query.price, $gte: minPrice };
-      }
-      if (maxPrice !== undefined && maxPrice !== null && !isNaN(maxPrice)) {
-        query.price = { ...query.price, $lte: maxPrice };
-      }
-      const [products, totalCount,wishlistProductIds] = await Promise.all([
-        this.productModel
-          .find(query)
-          .populate({
-            path: 'store',
-            select: '_id owner name country'
-          })
-          .select(
-            '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt'
-          )
-          .skip(skip)
-          .limit(limit)
-          .sort({ createdAt: -1 })
-          .lean()
-          .exec(),
-        this.productModel.countDocuments(query),
-        this.wishlistService.getWishlistItemsByUserId(userId)
-      ]);
-
-      
-      const productsWithWishlistStatus = products.map((product) => ({
-        ...product,
-        isLiked: wishlistProductIds.has(product._id.toString())
-      }));
 
       // Calculate pagination metadata
       const totalPages = Math.ceil(totalCount / limit);
       const hasNextPage = page < totalPages;
       const hasPreviousPage = page > 1;
 
+      const productsWithStatus = this.addWishlistStatus(
+        products,
+        wishlistProductIds
+      );
+
       const response = {
-        data: productsWithWishlistStatus || [],
+        data: {
+          productsWithStatus
+        },
         meta: {
           currentPage: page,
           itemsPerPage: limit,
@@ -284,11 +322,6 @@ export class ProductService {
           hasPreviousPage
         }
       };
-
-      await Promise.all([
-        this.cacheManager.set(cacheKey, response, CACHE_TTLS.PRODUCTS),
-        this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.PRODUCTS)
-      ]);
 
       return response;
     } catch (error) {
@@ -305,54 +338,41 @@ export class ProductService {
     }
   }
 
-  async getProductById(productId: string): Promise<any> {
+  async getProductById(productId: string, userId?: string): Promise<any> {
     try {
       const cacheKey = `product:${productId}`;
+      const cachedProduct = await this.cacheManager.get<Product>(cacheKey);
+      let product = cachedProduct;
 
-      // Try to get from cache
-      const cached = await this.cacheManager.get<Product>(cacheKey);
+      // 2. Fetch from DB if not cached
+      if (!product) {
+        product = await this.productModel
+          .findById(productId)
+          .populate({
+            path: 'store',
+            select: '_id name facebook instagram whatsApp email country'
+          })
+          .lean()
+          .exec();
 
-      if (cached) {
-        return cached;
+        if (!product?.store) {
+          throw new NotFoundException('Product not available');
+        }
+
+        // Cache raw product data (without user-specific like status)
+        await this.cacheManager.set(cacheKey, product, CACHE_TTLS.PRODUCTS);
       }
 
-      const product = await this.productModel
-        .findById(productId)
-        .populate<{
-          store: {
-            _id: any;
-            name: string;
-            facebook?: string;
-            instagram?: string;
-            whatsApp?: string;
-            email: string;
-            country: string;
-          };
-        }>({
-          path: 'store',
-          select: '_id name facebook instagram whatsApp email country'
-        })
-        .select(
-          '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt'
-        )
-        .lean()
-        .exec();
+      const wishlistProductIds = userId
+        ? await this.wishlistService.getWishlistItemsByUserId(userId)
+        : [];
 
-      if (!product || !product.store) {
-        throw new NotFoundException(
-          'Product not found or not available in your country'
-        );
-      }
+      // 3. Get wishlist status (only for logged-in users)
+      const productsWithStatus = userId
+        ? await this.addWishlistStatus(product, wishlistProductIds)
+        : { ...product, isLiked: false };
 
-      if (product.store as SimpleStore) {
-        product.store.facebook = product.store.facebook || null;
-        product.store.instagram = product.store.instagram || null;
-        product.store.whatsApp = product.store.whatsApp || null;
-      }
-
-      await this.cacheManager.set(cacheKey, product, CACHE_TTLS.PRODUCTS);
-
-      return product;
+      return productsWithStatus;
     } catch (error) {
       this.logger.error(`Error get products: ${error.message}`, error.stack);
       if (error instanceof HttpException) {
@@ -405,7 +425,10 @@ export class ProductService {
     await Promise.all(deletePromises);
   }
 
-  async searchProducts(querySearch: ProductFilterandSearchDto) {
+  async searchProducts(
+    querySearch: ProductFilterandSearchDto,
+    userId?: string
+  ) {
     try {
       const { search, country, category, minPrice, maxPrice, page, limit } =
         querySearch;
@@ -413,83 +436,104 @@ export class ProductService {
       const skip = (page - 1) * limit;
       if (limit > 50) throw new BadRequestException('Maximum limit is 50');
 
-      // 2. Decode and sanitize
-      const decodedSearch = decodeURIComponent(search.trim());
-      // Prevent regex injection
-      const sanitizedSearch = this.escapeRegex(decodedSearch);
-      const cacheKey = `search:${search || 'no-search'}:${country || 'all'}:${category || 'all'}:${minPrice || '0'}:${maxPrice || 'inf'}:${page}:${limit}`;
-      const cached = await this.cacheManager.get(cacheKey);
-
-      if (cached) {
-        return cached;
-      }
-
-      const query: any = {};
-
-      if (search && search.trim().length >= 2) {
-        const sanitizedSearch = this.escapeRegex(
-          decodeURIComponent(search.trim())
-        );
-        query.$or = [
-          { name_ar: { $regex: sanitizedSearch, $options: 'i' } },
-          { name_en: { $regex: sanitizedSearch, $options: 'i' } },
-          { name_no: { $regex: sanitizedSearch, $options: 'i' } },
-          { description_ar: { $regex: sanitizedSearch, $options: 'i' } },
-          { description_en: { $regex: sanitizedSearch, $options: 'i' } },
-          { description_no: { $regex: sanitizedSearch, $options: 'i' } }
-        ];
-      } else if (search && search.trim().length < 2) {
+      if (search && search.trim().length < 2) {
         throw new BadRequestException(
           'Search term must be at least 2 characters'
         );
       }
 
-      if (country) query.country = country;
-      if (category) query.category = category;
-      if (minPrice !== undefined)
-        query.price = { ...query.price, $gte: minPrice };
-      if (maxPrice !== undefined)
-        query.price = { ...query.price, $lte: maxPrice };
+      const cacheKey = `search:${search}:${country}:${category}:${minPrice}:${maxPrice}:${page}:${limit}`;
 
-      const collationSettings = {
-        syria: { locale: 'ar', strength: 2 },
-        norway: { locale: 'nb', strength: 2 }
-      };
+      // 3. Try Cache
+      const cached = await this.cacheManager.get<{
+        products: Product[];
+        totalCount: number;
+      }>(cacheKey);
 
-      const [products, totalCount] = await Promise.all([
-        this.productModel
-          .find(query)
-          .populate({
-            path: 'store',
-            select: '_id name country'
-          })
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean()
-          .exec(),
-        this.productModel.countDocuments(query)
-      ]);
+      const wishlistProductIds = userId
+        ? await this.wishlistService.getWishlistItemsByUserId(userId)
+        : [];
+
+      let products = [];
+      let totalCount: number = 0;
+
+      if (cached) {
+        products = cached.products;
+        totalCount = cached.totalCount;
+      } else {
+        const query: any = {};
+
+        if (search && search.trim().length >= 2) {
+          const sanitizedSearch = this.escapeRegex(
+            decodeURIComponent(search.trim())
+          );
+          query.$or = [
+            { name_ar: { $regex: sanitizedSearch, $options: 'i' } },
+            { name_en: { $regex: sanitizedSearch, $options: 'i' } },
+            { name_no: { $regex: sanitizedSearch, $options: 'i' } },
+            { description_ar: { $regex: sanitizedSearch, $options: 'i' } },
+            { description_en: { $regex: sanitizedSearch, $options: 'i' } },
+            { description_no: { $regex: sanitizedSearch, $options: 'i' } }
+          ];
+        }
+
+        if (country) query.country = country;
+        if (category) query.category = category;
+        if (minPrice !== undefined)
+          query.price = { ...query.price, $gte: minPrice };
+        if (maxPrice !== undefined)
+          query.price = { ...query.price, $lte: maxPrice };
+
+        const collationSettings = {
+          syria: { locale: 'ar', strength: 2 },
+          norway: { locale: 'nb', strength: 2 }
+        };
+
+        [products, totalCount] = await Promise.all([
+          this.productModel
+            .find(query)
+            .populate({
+              path: 'store',
+              select: '_id name country'
+            })
+            .collation(collationSettings[country])
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .exec(),
+          this.productModel.countDocuments(query)
+        ]);
+        await this.cacheManager.set(
+          cacheKey,
+          { products, totalCount },
+          CACHE_TTLS.PRODUCTS
+        );
+      }
 
       // Calculate pagination metadata
       const totalPages = Math.ceil(totalCount / limit);
       const hasNextPage = page < totalPages;
       const hasPreviousPage = page > 1;
 
+      const productsWithStatus = this.addWishlistStatus(
+        products,
+        wishlistProductIds
+      );
+
       const response = {
-        data: products,
+        data: {
+          productsWithStatus
+        },
         meta: {
           currentPage: page,
           itemsPerPage: limit,
           totalItems: totalCount,
           totalPages,
           hasNextPage,
-          hasPreviousPage,
-          searchTerm: sanitizedSearch || null
+          hasPreviousPage
         }
       };
-      await this.cacheManager.set(cacheKey, response, CACHE_TTLS.PRODUCTS);
-
       return response;
     } catch (error) {
       this.logger.error(`Product search failed: ${error.message}`, error.stack);
@@ -590,6 +634,38 @@ export class ProductService {
       }
       throw new InternalServerErrorException('Failed to get new arrivals');
     }
+  }
+
+  private async tryGetCachedProducts(cacheKey: string, userId?: string) {
+    const cached = await this.cacheManager.get<{
+      data: Product[];
+      totalCount: number;
+    }>(cacheKey);
+    if (cached) {
+      const wishlistProductIds = userId
+        ? await this.wishlistService.getWishlistItemsByUserId(userId)
+        : [];
+
+      return { ...cached, wishlistProductIds };
+    }
+
+    return null;
+  }
+
+  private addWishlistStatus(products, wishlistIds: string[]) {
+    const wishlistSet = new Set(wishlistIds);
+
+    if (Array.isArray(products)) {
+      return products.map((product) => ({
+        ...product,
+        isLiked: wishlistSet.has(product._id.toString())
+      }));
+    }
+
+    return {
+      ...products,
+      isLiked: wishlistSet.has(products._id.toString())
+    };
   }
 
   // const aggregationPipeline = [

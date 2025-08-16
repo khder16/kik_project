@@ -32,13 +32,13 @@ export class Store {
   @Prop({ type: String, unique: true, sparse: true, default: null, })
   email: string;
 
-  @Prop({ type: String, unique: true, sparse: true, default: null, })
+  @Prop({ type: String, unique: true, sparse: true, default: undefined, })
   facebook?: string;
 
-  @Prop({ type: String, unique: true, sparse: true, default: null, })
+  @Prop({ type: String, unique: true, sparse: true, default: undefined, })
   instagram?: string;
 
-  @Prop({ type: String, unique: true, sparse: true, default: null, })
+  @Prop({ type: String, unique: true, sparse: true, default: undefined, })
   whatsApp?: string;
 
 

@@ -30,7 +30,6 @@ export class WishlistService {
       if (limit > 50) throw new BadRequestException('Maximum limit is 50');
 
       const cacheKey = `wishlist:${userId}:${page}:${limit}`;
-      const cacheCountKey = `wishlist_count:${userId}`;
       const cached = await this.cacheManager.get<{
         data: Product[];
         meta: any;
@@ -82,10 +81,7 @@ export class WishlistService {
       };
 
       // Caching the results
-      await Promise.all([
-        this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART),
-        this.cacheManager.set(cacheCountKey, totalCount, CACHE_TTLS.CART)
-      ]);
+      await this.cacheManager.set(cacheKey, response, CACHE_TTLS.CART);
       return response;
     } catch (error) {
       this.logger.error(
@@ -139,6 +135,15 @@ export class WishlistService {
       }
       if (!Types.ObjectId.isValid(userId)) {
         throw new NotFoundException('Invalid user ID format');
+      }
+
+      // 3. Check Wishlist Limit (100 items max)
+      const currentCount = await this.wishlistModel.countDocuments({
+        user: userId
+      });
+
+      if (currentCount >= 100) {
+        throw new BadRequestException('Wishlist limit reached (100 items max)');
       }
       const wishlist = await this.wishlistModel
         .findOneAndUpdate(
@@ -242,8 +247,9 @@ export class WishlistService {
     }
     return wishlist;
   }
+
   private async clearUserWishlistCache(userId: string) {
-    const maxPages = 5;
+    const maxPages = 10;
     const deletePromises = [];
 
     for (let page = 1; page <= maxPages; page++) {

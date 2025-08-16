@@ -28,7 +28,6 @@ import { SearchDto } from './dto/search.dto';
 import { ProductFilterandSearchDto } from './dto/filter-serch-query.dto';
 import { OptionalJwtAuthGuard } from 'src/common/guards/optionalAuthentication.guard';
 
-@ApiTags('Products')
 @ApiBearerAuth()
 @Controller('products')
 export class ProductController {
@@ -100,8 +99,11 @@ export class ProductController {
     status: 400,
     description: 'Invalid search parameters'
   })
-  async searchProduct(@Query() query: ProductFilterandSearchDto) {
-    return await this.productService.searchProducts(query);
+  async searchProduct(
+    @Query() query: ProductFilterandSearchDto,
+    @UserDecorator('_id') userId: string
+  ) {
+    return await this.productService.searchProducts(query, userId);
   }
 
   @UseGuards(OptionalJwtAuthGuard)
@@ -174,7 +176,7 @@ export class ProductController {
     @Query() filterDto: ProductFilterandSearchDto,
     @UserDecorator('_id') userId: string
   ) {
-    return await this.productService.filteredProducts(filterDto,userId);
+    return await this.productService.filteredProducts(filterDto, userId);
   }
 
   @UseGuards(OptionalJwtAuthGuard)
@@ -197,8 +199,8 @@ export class ProductController {
     status: 404,
     description: 'Product not found'
   })
-  async findProductById(@Param('productId') productId: string) {
-    return await this.productService.getProductById(productId.toString());
+  async findProductById(@Param('productId') productId: string,@UserDecorator('_id') userId:string) {
+    return await this.productService.getProductById(productId.toString(),userId);
   }
 
   @UseGuards(JwtAuthGuard)

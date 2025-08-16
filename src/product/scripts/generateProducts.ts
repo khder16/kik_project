@@ -42,10 +42,10 @@ async function generateProducts(count: number): Promise<void> {
                 description_ar: ` وصف منتج سوري ${i + 1}`,
                 price: Math.floor(Math.random() * 1000) + 1,
                 stockQuantity: Math.floor(Math.random() * 500),
-                category: getRandomCategory(),
+                category: 'cars',
                 country: 'syria',
-                store: new Types.ObjectId("68878a41b0394779acf4fa9f"),
-                images: [`/images/68878a41b0394779acf4fa9f/product-${i + 1}.webp`],
+                store: new Types.ObjectId("68a00cd652d4be13d6375860"),
+                images: [`/images/689f9684b9841a943df6b39a/product-${i + 1}.webp`],
                 createdAt: new Date(),
                 updatedAt: new Date()
             });
@@ -63,5 +63,4 @@ async function generateProducts(count: number): Promise<void> {
     }
 }
 
-// Generate exactly 3000 products
-generateProducts(3000);
+generateProducts(100);

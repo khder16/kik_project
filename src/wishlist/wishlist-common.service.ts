@@ -18,16 +18,20 @@ export class WishlistCommonService {
 
   private readonly logger = new Logger(WishlistCommonService.name);
 
-  async getWishlistItemsByUserId(userId: string) {
+  async getWishlistItemsByUserId(userId?: string) {
     try {
       const wishlistItems = await this.wishlistModel
         .findOne({ user: userId })
         .select('products')
         .lean()
         .exec();
+
+      if (!wishlistItems) {
+        return [];
+      }
+
       const productsId = wishlistItems.products.map((i) => i.toString());
-      return new Set(productsId);
-      
+      return productsId;
     } catch (error) {
       this.logger.error(
         `Error add to get user wishlist: ${error.message}`,

@@ -8,7 +8,7 @@ export class WinstonLogger implements LoggerService {
 
     constructor(private context?: string) {
         this.logger = createLogger({
-            level: process.env.NODE_ENV === 'production' ? 'info' : 'debug', // Adjust log level for prod
+            level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
             format: format.combine(
                 format.timestamp(),
                 format.json() 
@@ -17,7 +17,7 @@ export class WinstonLogger implements LoggerService {
                 new transports.Console({
                     format: format.combine(
                         format.colorize(),
-                        format.simple() // For local development readability
+                        format.simple() 
                     ),
                 }),
                 new transports.DailyRotateFile({
