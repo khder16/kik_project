@@ -378,9 +378,7 @@ export class SellerController {
     // 1. Authorization checks
     this.validateUserIsSeller(user.role);
     await this.validateUserOwnsStore(storeId, user._id);
-
-    // 2. Input validation
-    this.validateRequiredFields(storeId, images);
+    
     try {
       const storeExists = await this.storeService.getStoreById(storeId);
       if (!storeExists) throw new NotFoundException('Store not found.');
@@ -472,11 +470,19 @@ export class SellerController {
 
   private validateRequiredFields(
     storeId: string,
-    images: Express.Multer.File[]
+    images?: Express.Multer.File[]
   ): void {
     if (!storeId) throw new BadRequestException('Store ID is required.');
     if (!images?.length)
       throw new BadRequestException('At least one product image is required.');
+  }
+
+  
+  private validateRequiredFieldsForUpdate(
+    storeId: string
+  ): void {
+    if (!storeId) throw new BadRequestException('Store ID is required.');
+ 
   }
 
   private validateStoreLimit = async (ownerId: string) => {

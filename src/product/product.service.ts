@@ -160,38 +160,18 @@ export class ProductService {
         ? await this.wishlistService.getWishlistItemsByUserId(userId)
         : [];
 
-      // 3. Try Cache
-      const cached = await this.cacheManager.get<{
-        products: Product[];
-        totalCount: number;
-      }>(cacheKey);
-
-      let products = [];
-      let totalCount: number = 0;
-      if (cached) {
-        products = cached.products;
-        totalCount = cached.totalCount;
-      } else {
-        [products, totalCount] = await Promise.all([
-          this.productModel
-            .find({ store: storeId })
-            .select(
-              '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt'
-            )
-            .skip(skip)
-            .limit(limit)
-            .lean()
-            .exec(),
-          this.productModel.countDocuments({ store: storeId })
-        ]);
-
-        // Caching the result
-        await this.cacheManager.set(
-          cacheKey,
-          { products, totalCount },
-          CACHE_TTLS.PRODUCTS
-        );
-      }
+      const [products, totalCount] = await Promise.all([
+        this.productModel
+          .find({ store: storeId })
+          .select(
+            '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt'
+          )
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .exec(),
+        this.productModel.countDocuments({ store: storeId })
+      ]);
 
       const totalPages = Math.ceil(totalCount / limit);
       const hasNextPage = page < totalPages;
