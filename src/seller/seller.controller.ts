@@ -131,7 +131,7 @@ export class SellerController {
       store._id,
       page,
       limit,
-      sellerId,
+      sellerId
     );
   }
 
@@ -259,9 +259,9 @@ export class SellerController {
       // 3. Business logic
       const storeExists = await this.storeService.getStoreById(storeId);
       if (!storeExists) throw new NotFoundException('Store not found.');
-    //   if(storeExists.category !== newProductDto.category) {
-    //     throw BadRequestException('product category must be ')
-    //   }
+      //   if(storeExists.category !== newProductDto.category) {
+      //     throw BadRequestException('product category must be ')
+      //   }
       const imagePaths = await this.imagesService.processAndSaveImages(
         images,
         storeId
@@ -378,19 +378,19 @@ export class SellerController {
     // 1. Authorization checks
     this.validateUserIsSeller(user.role);
     await this.validateUserOwnsStore(storeId, user._id);
-    
+
     try {
       const storeExists = await this.storeService.getStoreById(storeId);
       if (!storeExists) throw new NotFoundException('Store not found.');
-      const imagePaths = await this.imagesService.processAndSaveImages(
-        images,
-        storeId
-      );
 
-      // Clear relevant caches
-      await this.cacheManager.del(`product:${productId}:*`);
-      await this.cacheManager.del('new_products:*');
-      await this.cacheManager.del('products:filter:*');
+      let imagePaths: string[] | undefined;
+
+      if (images && images.length > 0) {
+        imagePaths = await this.imagesService.processAndSaveImages(
+          images,
+          storeId
+        );
+      }
 
       return await this.productService.updateProduct(
         updateProductDto,
@@ -477,12 +477,8 @@ export class SellerController {
       throw new BadRequestException('At least one product image is required.');
   }
 
-  
-  private validateRequiredFieldsForUpdate(
-    storeId: string
-  ): void {
+  private validateRequiredFieldsForUpdate(storeId: string): void {
     if (!storeId) throw new BadRequestException('Store ID is required.');
- 
   }
 
   private validateStoreLimit = async (ownerId: string) => {

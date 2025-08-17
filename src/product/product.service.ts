@@ -65,21 +65,24 @@ export class ProductService {
         throw new NotFoundException('Product not found.');
       }
 
-      // 2. Delete old images if they exist
-      if (existingProduct.images && existingProduct.images.length > 0) {
-        await this.deleteProductImages(
-          existingProduct.images,
-          existingProduct.store.toString()
-        );
+      if (images && images.length > 0) {
+        // Delete old images if they exist
+        if (existingProduct.images && existingProduct.images.length > 0) {
+          await this.deleteProductImages(
+            existingProduct.images,
+            existingProduct.store.toString()
+          );
+        }
       }
 
-      // 3. Update product with new data
+      const updateData = images ? { ...newProduct, images } : { ...newProduct };
+
       const updatedProduct = await this.productModel.findByIdAndUpdate(
         productId,
-        { ...newProduct, images },
+        updateData,
         { new: true, session }
       );
-
+      
       await session.commitTransaction();
       return updatedProduct;
     } catch (error) {
