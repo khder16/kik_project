@@ -437,18 +437,15 @@ export class AuthService {
   }
 
   private setTokenCookie(res: Response, token: string) {
-    const cookieOptions = {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.cookie('access_token', token, {
       httpOnly: true,
-      secure: false,
-      maxAge: 24 * 60 * 60 * 1000,
-      sameSite: 'none' as const,
-      path: '/'
-    };
-    //  httpOnly: true,
-    // secure: this.configService.get<string>('NODE_ENV') === 'production',
-    // maxAge: 24 * 60 * 60 * 1000,
-    // sameSite: 'strict' as const,
-    // path: '/'
-    res.cookie('access_token', token, cookieOptions);
+      secure: isProduction, // true in production, false in development
+      sameSite: isProduction ? 'none' : 'lax', // none for prod, lax for dev
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+      path: '/',
+      domain: isProduction ? '.kikorganisk.com' : undefined // set in prod only
+    });
   }
 }

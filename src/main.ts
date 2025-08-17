@@ -35,10 +35,12 @@ async function bootstrap() {
   app.enableCors({
     origin:
       process.env.NODE_ENV === 'development'
-        ? true // allows all origins in development
+        ? true // allows all in development
         : configService.get<string>('CORS_ORIGIN').split(','),
     credentials: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE'
+    exposedHeaders: ['set-cookie'], // Required for some browsers
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    allowedHeaders: ['Content-Type', 'Authorization']
   });
 
   app.use(new SanitizeMongoMiddleware().use);
