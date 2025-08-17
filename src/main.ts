@@ -31,16 +31,25 @@ async function bootstrap() {
   app.use('/public', express.static(join(process.cwd(), 'public')));
 
   // Security Middlewares
-  app.use(helmet());
+  // app.use(helmet());
+  app.use(helmet({
+  contentSecurityPolicy: false, // Disable if you need dynamic policies
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "same-site" },
+  originAgentCluster: true
+}));
+
   app.enableCors({
-    origin:
-      process.env.NODE_ENV === 'development'
-        ? true // allows all in development
-        : configService.get<string>('CORS_ORIGIN').split(','),
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:4200',
+      'http://31.97.78.230:3000',
+      'https://kikorganisk.com'
+    ],
     credentials: true,
-    exposedHeaders: ['set-cookie'], // Required for some browsers
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: ['Content-Type', 'Authorization']
+    exposedHeaders: ['set-cookie', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS'
   });
 
   app.use(new SanitizeMongoMiddleware().use);
