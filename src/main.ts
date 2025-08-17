@@ -33,9 +33,12 @@ async function bootstrap() {
   // Security Middlewares
   app.use(helmet());
   app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN').split(','),
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true
+    origin:
+      process.env.NODE_ENV === 'development'
+        ? true // allows all origins in development
+        : configService.get<string>('CORS_ORIGIN').split(','),
+    credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE'
   });
 
   app.use(new SanitizeMongoMiddleware().use);
