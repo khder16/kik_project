@@ -50,9 +50,8 @@ export class ProductService {
   }
 
   async updateProduct(
-    newProduct: UpdateProductDto,
-    productId: string,
-    images?: string[]
+    newProductData: UpdateProductDto,
+    productId: string
   ): Promise<Product> {
     const session = await this.productModel.startSession();
     session.startTransaction();
@@ -65,24 +64,24 @@ export class ProductService {
         throw new NotFoundException('Product not found.');
       }
 
-      if (images && images.length > 0) {
-        // Delete old images if they exist
-        if (existingProduct.images && existingProduct.images.length > 0) {
-          await this.deleteProductImages(
-            existingProduct.images,
-            existingProduct.store.toString()
-          );
-        }
-      }
+      // if (newProduct.images && newProduct.images.length > 0) {
+      //   // Delete old images if they exist
+      //   if (existingProduct.images && existingProduct.images.length > 0) {
+      //     await this.deleteProductImages(
+      //       existingProduct.images,
+      //       existingProduct.store.toString()
+      //     );
+      //   }
+      // }
 
-      const updateData = images ? { ...newProduct, images } : { ...newProduct };
+      // const updateData = images ? { ...newProduct, images } : { ...newProduct };
 
       const updatedProduct = await this.productModel.findByIdAndUpdate(
         productId,
-        updateData,
+        newProductData,
         { new: true, session }
       );
-      
+
       await session.commitTransaction();
       return updatedProduct;
     } catch (error) {

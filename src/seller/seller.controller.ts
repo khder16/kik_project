@@ -372,8 +372,8 @@ export class SellerController {
     @Param('productId') productId: string,
     @Param('storeId') storeId: string,
     @Body() updateProductDto: UpdateProductDto,
-    @UploadedFiles() images: Express.Multer.File[],
-    @UserDecorator() user: { _id: string; role: string }
+    @UserDecorator() user: { _id: string; role: string },
+    @UploadedFiles() images?: Express.Multer.File[],
   ) {
     // 1. Authorization checks
     this.validateUserIsSeller(user.role);
@@ -390,12 +390,12 @@ export class SellerController {
           images,
           storeId
         );
+        updateProductDto.images = imagePaths
       }
 
       return await this.productService.updateProduct(
         updateProductDto,
         productId,
-        imagePaths
       );
     } catch (error) {
       throw new BadRequestException(
@@ -404,6 +404,8 @@ export class SellerController {
     }
   }
 
+
+  
   @Roles(UserRole.SELLER)
   @Delete('stores/:storeId/products/:productId')
   @ApiOperation({
