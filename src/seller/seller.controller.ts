@@ -396,8 +396,8 @@ export class SellerController {
 
       return await this.productService.updateProduct(
         updateProductDto,
-        imagePaths,
-        productId
+        productId,
+        imagePaths
       );
     } catch (error) {
       throw new BadRequestException(

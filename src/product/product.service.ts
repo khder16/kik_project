@@ -51,8 +51,8 @@ export class ProductService {
 
   async updateProduct(
     newProduct: UpdateProductDto,
-    images: string[],
-    productId: string
+    productId: string,
+    images?: string[]
   ): Promise<Product> {
     const session = await this.productModel.startSession();
     session.startTransaction();
