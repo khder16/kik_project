@@ -94,10 +94,16 @@ export class SellerController {
   }
 
   @Roles(UserRole.SELLER)
-  @Get('products')
+  @Get('stores/:storeId/products')
   @ApiOperation({
     summary: 'Get seller products',
     description: 'Get paginated list of products from all seller stores'
+  })
+  @ApiParam({
+    name: 'storeId',
+    description: '[PARAM] Store ID (MongoDB ObjectId)',
+    type: String,
+    example: '507f1f77bcf86cd799439011'
   })
   @ApiQuery({
     name: 'page',
@@ -123,18 +129,19 @@ export class SellerController {
   })
   async getAllSellerProducts(
     @UserDecorator('_id') sellerId: string,
+    @Param('storeId') storeId: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10
   ) {
-    const store = await this.storeService.getStoresBySellerId(sellerId);
     return await this.productService.getProductsByStoreId(
-      store._id,
+      storeId,
       page,
       limit,
       sellerId
     );
   }
 
+  
   @Roles(UserRole.SELLER)
   @ApiOperation({
     summary: 'Update seller store',
@@ -373,7 +380,7 @@ export class SellerController {
     @Param('storeId') storeId: string,
     @Body() updateProductDto: UpdateProductDto,
     @UserDecorator() user: { _id: string; role: string },
-    @UploadedFiles() images?: Express.Multer.File[],
+    @UploadedFiles() images?: Express.Multer.File[]
   ) {
     // 1. Authorization checks
     this.validateUserIsSeller(user.role);
@@ -390,12 +397,12 @@ export class SellerController {
           images,
           storeId
         );
-        updateProductDto.images = imagePaths
+        updateProductDto.images = imagePaths;
       }
 
       return await this.productService.updateProduct(
         updateProductDto,
-        productId,
+        productId
       );
     } catch (error) {
       throw new BadRequestException(
@@ -404,8 +411,6 @@ export class SellerController {
     }
   }
 
-
-  
   @Roles(UserRole.SELLER)
   @Delete('stores/:storeId/products/:productId')
   @ApiOperation({

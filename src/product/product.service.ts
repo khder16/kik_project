@@ -174,7 +174,7 @@ export class ProductService {
           .exec(),
         this.productModel.countDocuments({ store: storeId })
       ]);
-
+      console.log(products)
       const totalPages = Math.ceil(totalCount / limit);
       const hasNextPage = page < totalPages;
       const hasPreviousPage = page > 1;
