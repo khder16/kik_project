@@ -62,7 +62,7 @@ export class UserService {
     try {
       const seller = await this.userModel
         .findById({ _id: sellerId })
-        .select('_id firstName lastName role email phoneNumber country')
+        .select('_id firstName lastName role email phoneNumber country store')
         .lean()
         .exec();
       if (!seller) {

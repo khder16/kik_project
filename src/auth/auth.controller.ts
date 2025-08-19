@@ -119,7 +119,8 @@ export class AuthController {
         user: {
           firstName: result.user.firstName,
           lastName: result.user.lastName
-        }
+        },
+        token:result.access_token
       };
     } catch (error) {
       if (error instanceof HttpException) {

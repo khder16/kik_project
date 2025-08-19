@@ -84,9 +84,10 @@ export class AuthService {
       };
       const token = this.generateToken(payload);
 
-      this.setTokenCookie(res, token);
+      // this.setTokenCookie(res, token);
+      res.setHeader('Authorization', `Bearer ${token}`);
 
-      return { user: userInfo };
+      return { user: userInfo, token: token };
     } catch (error) {
       this.logger.error(
         `Error during user creation: ${error.message}`,
@@ -145,9 +146,9 @@ export class AuthService {
 
       const token = this.generateToken(payload);
 
-      this.setTokenCookie(res, token);
-
-      return { user: userInfo };
+      // this.setTokenCookie(res, token);
+      res.setHeader('Authorization', `Bearer ${token}`);
+      return { user: userInfo,  access_token: token  };
     } catch (error) {
       this.logger.error(
         `Error during login process: ${error.message}`,
@@ -438,7 +439,7 @@ export class AuthService {
 
   private setTokenCookie(res: Response, token: string) {
     const isProduction = process.env.NODE_ENV === 'production';
-    
+
     res.cookie('access_token', token, {
       httpOnly: true,
       secure: isProduction, // true in production, false in development

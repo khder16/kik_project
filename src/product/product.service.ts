@@ -146,20 +146,77 @@ export class ProductService {
     }
   }
 
-  async getProductsByStoreId(
-    storeId: any,
+  async getAllProductsBySellerId(
+    sellerId: string,
     page: number,
     limit: number,
-    userId?: string
+    storeIds?: string[]
   ) {
     try {
       const skip = (page - 1) * limit;
       if (limit > 50) throw new BadRequestException('Maximum limit is 50');
-      const cacheKey = `products:${storeId}:page${page}:limit${limit}`;
+
+      // 1. Build the query
+
+        if(!storeIds) {
+          throw new NotFoundException("there is no products in your store/s ")
+        }
+      const wishlistProductIds = sellerId
+        ? await this.wishlistService.getWishlistItemsByUserId(sellerId)
+        : [];
+      const query = { store: { $in: storeIds } };
+      const [products, totalCount] = await Promise.all([
+        this.productModel
+          .find(query)
+          .select('_id name_en price images store')
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .exec(),
+        this.productModel.countDocuments(query)
+      ]);
+
+      // 4. Add wishlist status and pagination meta
+      const productsWithStatus = this.addWishlistStatus(
+        products,
+        wishlistProductIds
+      );
+
+      return {
+        data: { products: productsWithStatus },
+        meta: {
+          currentPage: page,
+          itemsPerPage: limit,
+          totalItems: totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+          hasNextPage: page < Math.ceil(totalCount / limit),
+          hasPreviousPage: page > 1
+        }
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error fetching products: ${error.message}`,
+        error.stack
+      );
+      throw error instanceof HttpException
+        ? error
+        : new InternalServerErrorException('Failed to fetch products');
+    }
+  }
+
+  async getProductsByStoreId(
+    storeId: string,
+    page: number,
+    limit: number,
+    sellerId?: string
+  ) {
+    try {
+      const skip = (page - 1) * limit;
+      if (limit > 50) throw new BadRequestException('Maximum limit is 50');
 
       // Get wishlist IDs (empty array if no user)
-      const wishlistProductIds = userId
-        ? await this.wishlistService.getWishlistItemsByUserId(userId)
+      const wishlistProductIds = sellerId
+        ? await this.wishlistService.getWishlistItemsByUserId(sellerId)
         : [];
 
       const [products, totalCount] = await Promise.all([
@@ -174,7 +231,7 @@ export class ProductService {
           .exec(),
         this.productModel.countDocuments({ store: storeId })
       ]);
-      console.log(products)
+
       const totalPages = Math.ceil(totalCount / limit);
       const hasNextPage = page < totalPages;
       const hasPreviousPage = page > 1;

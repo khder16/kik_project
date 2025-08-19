@@ -234,7 +234,7 @@ export class StoreService {
   async getStoresBySellerId(ownerId: string) {
     try {
       const store = await this.storeModel
-        .findOne({ owner: ownerId })
+        .find({ owner: ownerId })
         .lean()
         .exec();
       if (!store) {

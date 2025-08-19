@@ -40,6 +40,7 @@ import * as redisStore from 'cache-manager-redis-store';
       isGlobal: true,
       load: [configuration]
     }),
+    
 
     // JWT Config Setup
     JwtModule.registerAsync({

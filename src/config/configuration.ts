@@ -5,7 +5,7 @@ export default () => ({
     },
     jwt: {
         secret: process.env.JWT_SECRET || 'kikecommerce',
-        expiresIn: process.env.JWT_EXPIRE_IN || '3d'
+        expiresIn: process.env.JWT_EXPIRE_IN || '1d'
     },
     google: {
         clientId: process.env.GOOGLE_CLIENT_ID,

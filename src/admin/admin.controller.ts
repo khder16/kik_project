@@ -22,7 +22,6 @@ import { Throttle } from '@nestjs/throttler';
 import { EmailDto } from 'src/auth/dto/email.dto';
 import { Roles } from 'src/common/decorators/rols.decorator';
 import { UserDecorator } from 'src/common/decorators/userId.decorator';
-import { JwtAuthGuard } from 'src/common/guards/authentication.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { GetStoresFilterDto } from 'src/store/dto/get-stores-by-country.dto';
 import { StoreService } from 'src/store/store.service';
@@ -31,6 +30,7 @@ import { UserService } from 'src/user/user.service';
 import { CreateAdminsDto } from './dto/create-admins.dto';
 import { AuthService } from 'src/auth/auth.service';
 import { getUsersByTypeQuery } from './dto/get-users-by-type.dto';
+import { JwtAuthGuard } from 'src/common/guards/authentication.guard';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)

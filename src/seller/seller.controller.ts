@@ -127,7 +127,7 @@ export class SellerController {
     status: 403,
     description: 'Forbidden - User is not a seller'
   })
-  async getAllSellerProducts(
+  async getStoreAllProducts(
     @UserDecorator('_id') sellerId: string,
     @Param('storeId') storeId: string,
     @Query('page') page: number = 1,
@@ -141,7 +141,29 @@ export class SellerController {
     );
   }
 
-  
+  // Get All Products In all stores owned by seller
+  @Roles(UserRole.SELLER)
+  @Get('stores/products')
+  @ApiOperation({
+    summary: 'Get all seller products',
+    description: 'Get paginated list of products from all seller stores'
+  })
+  async getAllProductsBySellerId(
+    @UserDecorator('_id') sellerId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10
+  ) {
+    const stores = await this.storeService.getStoresBySellerId(sellerId);
+    const storeIds = stores.map((store) => store._id.toString());
+
+    return await this.productService.getAllProductsBySellerId(
+      sellerId,
+      page,
+      limit,
+      storeIds
+    );
+  }
+
   @Roles(UserRole.SELLER)
   @ApiOperation({
     summary: 'Update seller store',
