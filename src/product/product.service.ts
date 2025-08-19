@@ -168,7 +168,9 @@ export class ProductService {
       const [products, totalCount] = await Promise.all([
         this.productModel
           .find(query)
-          .select('_id name_en price images store')
+        .select(
+            '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt'
+          )
           .skip(skip)
           .limit(limit)
           .lean()

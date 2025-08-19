@@ -16,7 +16,7 @@ export class ImageProcessingService {
                 const originalName = path.parse(image.originalname).name;
                 const outputFilename = `${originalName}-${Date.now()}.webp`;
                 const outputPath = path.join(publicImageDir, outputFilename);
-                const publicPath = `puplic/images/${storeId}/${outputFilename}`;
+                const publicPath = `public/images/${storeId}/${outputFilename}`;
 
                 // Process directly from memory buffer
                 await sharp(image.buffer)
