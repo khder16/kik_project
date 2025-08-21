@@ -120,7 +120,7 @@ export class AuthController {
           firstName: result.user.firstName,
           lastName: result.user.lastName
         },
-        token:result.access_token
+        token: result.access_token
       };
     } catch (error) {
       if (error instanceof HttpException) {
@@ -269,27 +269,16 @@ export class AuthController {
   })
   @ApiResponse({ status: 200, description: 'OTP validated successfully' })
   @ApiResponse({ status: 409, description: 'Invalid OTP code' })
-  async validateOtp(@Body() validateOtpDto: OtpDto) {
-    const isValid = await this.otpService.getOtpCode(
+  async validateOtp(@Body() validateOtpDto: OtpDto, @Res() res: Response) {
+    const response = await this.authService.verifyPasswordResetOtp(
       validateOtpDto.email,
-      validateOtpDto.code
+      validateOtpDto.code,
+      res
     );
-    if (!isValid) {
-      throw new ConflictException('Invalid OTP code');
-    }
-    return {
-      statusCode: HttpStatus.OK,
-      message: 'OTP validated successfully'
-    };
+    
+    return response
   }
-  catch(error: any) {
-    if (error instanceof ConflictException) {
-      throw error;
-    }
-    throw new InternalServerErrorException(
-      'An unexpected error occurred during OTP validation.'
-    );
-  }
+
 
   @UseGuards(JwtAuthGuard)
   @Post('password/reset')

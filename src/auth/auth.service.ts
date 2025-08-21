@@ -148,7 +148,7 @@ export class AuthService {
 
       // this.setTokenCookie(res, token);
       res.setHeader('Authorization', `Bearer ${token}`);
-      return { user: userInfo,  access_token: token  };
+      return { user: userInfo, access_token: token };
     } catch (error) {
       this.logger.error(
         `Error during login process: ${error.message}`,
@@ -266,8 +266,42 @@ export class AuthService {
     }
   }
 
-  async verifyPasswordResetOtp(email: string, code: string): Promise<boolean> {
-    return await this.otpService.getOtpCode(email, code);
+  async verifyPasswordResetOtp(email: string, code: string, res: Response) {
+    try {
+      const isValid = await this.otpService.getOtpCode(email, code);
+      if (!isValid) {
+        throw new UnauthorizedException('Invalid or expired OTP code');
+      }
+
+      const user = await this.userService.findByEmail(email);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      const payload = {
+        id: user._id,
+        email: user.email,
+        phone: user.phoneNumber,
+        role: user.role,
+        country: user.country
+      };
+
+      const token = this.generateToken(payload);
+
+      this.setTokenCookie(res, token);
+      res.setHeader('Authorization', `Bearer ${token}`);
+
+      return res.status(200).json({token:token});
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      console.error('OTP verification error:', error);
+      throw new InternalServerErrorException(
+        'An unexpected error occurred during OTP verification'
+      );
+    }
   }
 
   async UpdatePassword(email: string, password: string) {

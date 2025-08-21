@@ -158,9 +158,9 @@ export class ProductService {
 
       // 1. Build the query
 
-        if(!storeIds) {
-          throw new NotFoundException("there is no products in your store/s ")
-        }
+      if (!storeIds) {
+        throw new NotFoundException('there is no products in your store/s ');
+      }
       const wishlistProductIds = sellerId
         ? await this.wishlistService.getWishlistItemsByUserId(sellerId)
         : [];
@@ -168,7 +168,7 @@ export class ProductService {
       const [products, totalCount] = await Promise.all([
         this.productModel
           .find(query)
-        .select(
+          .select(
             '_id country name_en name_ar name_no description_no description_ar description_en price category stockQuantity images store createdAt'
           )
           .skip(skip)
